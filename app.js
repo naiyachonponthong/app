@@ -453,6 +453,7 @@ var _itemsPage = 1;
 var _itemsFilter = { search:'', category:'all', stock:'all' };
 var _itemImageFileId = null;
 var _itemsCacheTime = 0;
+var _configLogoFileId = null;
 var ITEMS_CACHE_TTL = 30000; // 30 วินาที
 
 function renderItems() {
@@ -1960,6 +1961,14 @@ function buildSettingsPage(cfg) {
   html += fieldHTML('ที่อยู่', 'cfgOrgAddr', 'text', cfg.organization_address||'', 'sm:col-span-2');
   html += fieldHTML('เบอร์โทรศัพท์', 'cfgOrgPhone', 'text', cfg.organization_phone||'');
   html += fieldHTML('อีเมลหน่วยงาน', 'cfgOrgEmail', 'email', cfg.organization_email||'');
+  // Logo upload
+  _configLogoFileId = cfg.app_logo || null;
+  var logoImgSrc = _configLogoFileId ? imgUrl(_configLogoFileId) : '';
+  if (logoImgSrc) {
+    html += '<div class="sm:col-span-2"><label class="form-label">โลโก้หน่วยงาน</label><div class="flex items-center gap-3"><img id="cfgLogoPreview" src="' + logoImgSrc + '" class="w-20 h-20 object-contain rounded-xl border border-gray-200 bg-white p-1"><button onclick="removeLogo()" type="button" class="text-red-500 text-sm hover:underline">ลบโลโก้</button></div><input type="hidden" id="cfgLogoFileId" value="' + (_configLogoFileId||'') + '"></div>';
+  } else {
+    html += '<div class="sm:col-span-2"><label class="form-label">โลโก้หน่วยงาน</label><input type="file" id="cfgLogoFile" accept="image/*" onchange="handleLogoUpload(this)" class="form-input py-1.5"><p class="text-xs text-gray-400 mt-1">รองรับ JPG, PNG (สูงสุด 2MB)</p><div id="cfgLogoPreviewWrap"></div></div>';
+  }
   html += '</div></div>';
 
   html += '<div class="card"><div class="card-header"><h3 class="font-semibold text-gray-700 flex items-center gap-2"><i class="fi fi-rr-bell text-navy-600"></i> การแจ้งเตือน Telegram</h3></div>';
@@ -2002,16 +2011,61 @@ function saveSettings() {
     telegram_enabled:      (document.getElementById('cfgTgEnabled')||{}).checked||false,
     telegram_bot_token:    (document.getElementById('cfgTgToken')||{}).value||'',
     telegram_chat_id:      (document.getElementById('cfgTgChatId')||{}).value||'',
-    low_stock_threshold:   parseInt((document.getElementById('cfgLowStock')||{}).value||5)
+    low_stock_threshold:   parseInt((document.getElementById('cfgLowStock')||{}).value||5),
+    app_logo:              (document.getElementById('cfgLogoFileId')||{}).value||_configLogoFileId||''
   };
   showLoading('กำลังบันทึก...');
   callAPI('saveConfig', AUTH.token, data).then(function(res) {
     hideLoading();
     if (res.success) {
       document.getElementById('sidebarAppName').textContent = data.app_name || 'ระบบวัสดุสิ้นเปลือง';
+      updateLogoDisplay(data.app_logo);
       showSuccess(res.message);
     } else showError(res.message);
   }).catch(function() { hideLoading(); showError('เกิดข้อผิดพลาด'); });
+}
+function updateLogoDisplay(fileId) {
+  var sidebarImg = document.getElementById('sidebarLogoImg');
+  var sidebarIcon = document.getElementById('sidebarLogoIcon');
+  var loginImg = document.getElementById('loginLogoImg');
+  var loginIcon = document.getElementById('loginLogoIcon');
+  var url = fileId ? imgUrl(fileId) : '';
+  if (url) {
+    if (sidebarImg) { sidebarImg.src = url; sidebarImg.classList.remove('hidden'); }
+    if (sidebarIcon) sidebarIcon.classList.add('hidden');
+    if (loginImg) { loginImg.src = url; loginImg.classList.remove('hidden'); }
+    if (loginIcon) loginIcon.classList.add('hidden');
+  } else {
+    if (sidebarImg) sidebarImg.classList.add('hidden');
+    if (sidebarIcon) sidebarIcon.classList.remove('hidden');
+    if (loginImg) loginImg.classList.add('hidden');
+    if (loginIcon) loginIcon.classList.remove('hidden');
+  }
+}
+function handleLogoUpload(input) {
+  var file = input.files[0];
+  if (!file) return;
+  if (!file.type.match('image.*')) { showError('กรุณาเลือกไฟล์รูปภาพ'); input.value=''; return; }
+  if (file.size > 2 * 1024 * 1024) { showError('ไฟล์ต้องไม่เกิน 2MB'); input.value=''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var base64 = e.target.result.split(',')[1];
+    showLoading('กำลังอัปโหลดโลโก้...');
+    callAPI('uploadFile', AUTH.token, base64, file.type, file.name).then(function(res) {
+      hideLoading();
+      if (res.success) {
+        _configLogoFileId = res.file_id;
+        var wrap = document.getElementById('cfgLogoPreviewWrap');
+        var url = imgUrl(res.file_id);
+        if (wrap) wrap.innerHTML = '<div class="flex items-center gap-3 mt-2"><img src="' + url + '" class="w-20 h-20 object-contain rounded-xl border border-gray-200 bg-white p-1"><button onclick="removeLogo()" type="button" class="text-red-500 text-sm hover:underline">ลบโลโก้</button></div><input type="hidden" id="cfgLogoFileId" value="' + res.file_id + '">';
+      } else showError(res.message);
+    }).catch(function() { hideLoading(); showError('อัปโหลดไม่สำเร็จ'); });
+  };
+  reader.readAsDataURL(file);
+}
+function removeLogo() {
+  _configLogoFileId = null;
+  renderSettings();
 }
 
 function doTestTelegram() {

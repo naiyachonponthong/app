@@ -148,7 +148,27 @@ function doOptions(e) {
 }
 
 function doPost(e) {
-  return jsonResponse({ success: false, message: 'POST disabled. Use GET with ?fn=...&args=[...]' });
+  try {
+    initializeSheets();
+    var fn, args = [];
+    if (e.postData && e.postData.type === 'application/json') {
+      var payload = JSON.parse(e.postData.contents);
+      fn = payload.fn;
+      args = payload.args || [];
+    } else {
+      fn = e.parameter.fn;
+      try { args = JSON.parse(e.parameter.args || '[]'); } catch(err) { args = []; }
+    }
+    var result;
+    switch (fn) {
+      case 'uploadFile': result = uploadFile(args[0], args[1], args[2], args[3]); break;
+      default: result = { success: false, message: 'Use GET for ' + fn };
+    }
+    return jsonResponse(result);
+  } catch(err) {
+    logError('doPost', err);
+    return jsonResponse({ success: false, message: err.message || String(err) });
+  }
 }
 
 function jsonResponse(data) {
