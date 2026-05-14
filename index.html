@@ -229,13 +229,19 @@
 
     <!-- Top Bar -->
     <header class="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm">
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
         <button class="lg:hidden text-gray-500 hover:text-gray-700" onclick="toggleSidebar()">
           <i class="fi fi-rr-menu-burger text-xl"></i>
         </button>
-        <div>
+        <div class="hidden sm:block">
           <h2 id="pageTitle" class="font-bold text-gray-800 text-base">ภาพรวมระบบ</h2>
           <p id="pageBreadcrumb" class="text-xs text-gray-400 hidden lg:block">ระบบวัสดุสิ้นเปลือง / ภาพรวมระบบ</p>
+        </div>
+        <!-- Global Search -->
+        <div class="relative flex-1 max-w-md ml-2">
+          <i class="fi fi-rr-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+          <input type="text" id="globalSearch" placeholder="ค้นหาวัสดุเร็ว..." onkeyup="debounceGlobalSearch()" class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 bg-gray-50">
+          <div id="globalSearchResults" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto"></div>
         </div>
       </div>
       <div class="flex items-center gap-2">

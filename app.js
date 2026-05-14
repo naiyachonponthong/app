@@ -258,6 +258,52 @@ function toggleSidebar() {
   document.getElementById('sidebarOverlay').classList.toggle('hidden');
 }
 
+// ===== GLOBAL SEARCH =====
+var _globalSearchTimer;
+function debounceGlobalSearch() {
+  clearTimeout(_globalSearchTimer);
+  _globalSearchTimer = setTimeout(performGlobalSearch, 300);
+}
+function performGlobalSearch() {
+  var q = (document.getElementById('globalSearch')||{}).value||'';
+  var resultsDiv = document.getElementById('globalSearchResults');
+  if (!q || q.length < 2) { resultsDiv.classList.add('hidden'); return; }
+  var term = q.toLowerCase();
+  var matches = (_itemsData || []).filter(function(i) {
+    return i.active !== false && (
+      (i.name||'').toLowerCase().includes(term) ||
+      (i.item_code||'').toLowerCase().includes(term) ||
+      (i.category||'').toLowerCase().includes(term)
+    );
+  }).slice(0, 8);
+  if (matches.length === 0) { resultsDiv.classList.add('hidden'); return; }
+  var html = '';
+  matches.forEach(function(item) {
+    var img = imgUrl(item.image_file_id);
+    var imgHtml = img ? '<img src="' + img + '" class="w-8 h-8 object-cover rounded-lg border border-gray-200">' : '<div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center"><i class="fi fi-rr-box-open-full text-gray-400 text-xs"></i></div>';
+    html += '<div class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0" onclick="globalSearchGoTo(\'' + item.id + '\')">';
+    html += imgHtml;
+    html += '<div class="flex-1 min-w-0"><p class="text-sm font-medium text-gray-800 truncate">' + escHtml(item.name) + '</p>';
+    html += '<p class="text-xs text-gray-500">' + escHtml(item.item_code) + ' • คงเหลือ ' + item.current_stock + ' ' + escHtml(item.unit) + '</p></div>';
+    html += '<i class="fi fi-rr-angle-right text-gray-400 text-xs"></i></div>';
+  });
+  resultsDiv.innerHTML = html;
+  resultsDiv.classList.remove('hidden');
+}
+function globalSearchGoTo(itemId) {
+  document.getElementById('globalSearch').value = '';
+  document.getElementById('globalSearchResults').classList.add('hidden');
+  showItemDetailModal(itemId);
+}
+// ปิด dropdown เมื่อ click นอก
+window.addEventListener('click', function(e) {
+  var gs = document.getElementById('globalSearch');
+  var gr = document.getElementById('globalSearchResults');
+  if (gs && gr && !gs.contains(e.target) && !gr.contains(e.target)) {
+    gr.classList.add('hidden');
+  }
+});
+
 // ===== DASHBOARD =====
 var _charts = {};
 
