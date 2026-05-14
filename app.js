@@ -1779,7 +1779,7 @@ function buildApprovePage(filterStatus) {
 }
 
 function openApproveModal(wdId, qty) {
-  var wd = _wdData.find(function(w){ return w.id === wdId; });
+  var wd = _approveData.find(function(w){ return w.id === wdId; });
   var item = wd && _itemsData.find(function(i){ return i.id === wd.item_id; });
   var img = item ? imgUrl(item.image_file_id) : '';
   var imgHtml = img ? '<div class="flex justify-center"><img src="' + img + '" class="w-24 h-24 object-cover rounded-xl border border-gray-200 shadow-sm"></div>' : '';
