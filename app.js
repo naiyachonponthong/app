@@ -1150,8 +1150,9 @@ function openWithdrawFromQR(itemId) {
   callAPI('getItems', AUTH.token).then(function(res) {
     hideLoading();
     _itemsData = res.data || [];
-    var item = _itemsData.find(function(i){ return i.id === itemId; });
-    if (!item) { showError('ไม่พบรายการวัสดุจาก QR'); return; }
+    var item = _itemsData.find(function(i){ return i.id == itemId; });
+    if (!item) item = _itemsData.find(function(i){ return i.item_code === itemId; });
+    if (!item) { showError('ไม่พบรายการวัสดุจาก QR (ID: ' + itemId + ')'); return; }
     var body = '<div class="space-y-4">';
     body += '<input type="hidden" id="wdItemId" value="' + itemId + '">';
     body += '<input type="hidden" id="wdViaQr" value="true">';
