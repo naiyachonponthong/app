@@ -311,11 +311,17 @@ var _charts = {};
 
 function renderDashboard() {
   showLoading('โหลดข้อมูล Dashboard...');
-  callAPI('getDashboardStats', AUTH.token).then(function(res) {
+  Promise.all([
+    callAPI('getDashboardStats', AUTH.token),
+    callAPI('getWithdrawals', AUTH.token, { status:'approved' })
+  ]).then(function(results) {
     hideLoading();
+    var res = results[0];
+    var wdRes = results[1];
     if (!res.success) { showError(res.message); return; }
     var d  = res;
     var kpi= res.kpi;
+    var withdrawals = (wdRes.data || []).filter(function(w){ return w.status === 'approved'; });
 
     var badge = document.getElementById('pendingBadge');
     if (kpi.pending > 0) { badge.textContent = kpi.pending; badge.classList.remove('hidden'); }
@@ -379,6 +385,13 @@ function renderDashboard() {
     html += '<div class="card-body"><div style="position:relative;height:220px"><canvas id="chartMonthly"></canvas></div></div></div>';
     html += '<div class="card"><div class="card-header"><h3 class="font-semibold text-gray-700 text-sm flex items-center gap-2"><i class="fi fi-rr-chart-pie text-navy-600"></i> สัดส่วนวัสดุ</h3></div>';
     html += '<div class="card-body"><div style="position:relative;height:220px"><canvas id="chartCategory"></canvas></div></div></div>';
+    html += '</div>';
+
+    html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">';
+    html += '<div class="card"><div class="card-header"><h3 class="font-semibold text-gray-700 text-sm flex items-center gap-2"><i class="fi fi-rr-chart-line text-navy-600"></i> เทรนด์การเบิกรายเดือน</h3></div>';
+    html += '<div class="card-body"><div style="position:relative;height:220px"><canvas id="chartWdTrend"></canvas></div></div></div>';
+    html += '<div class="card"><div class="card-header"><h3 class="font-semibold text-gray-700 text-sm flex items-center gap-2"><i class="fi fi-rr-chart-bar text-navy-600"></i> การเบิกตามหมวดหมู่</h3></div>';
+    html += '<div class="card-body"><div style="position:relative;height:220px"><canvas id="chartWdCat"></canvas></div></div></div>';
     html += '</div>';
 
     html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">';
@@ -465,6 +478,50 @@ function renderDashboard() {
           data:{ labels:cats, datasets:[{ data:vals, backgroundColor:colors.slice(0,cats.length), borderWidth:0, hoverOffset:6 }] },
           options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{ legend:{position:'bottom',labels:{font:{family:'Sarabun',size:10},boxWidth:10,padding:8}} } }
         });
+      }
+      // Withdrawal trend line chart
+      if (_charts.wdTrend) _charts.wdTrend.destroy();
+      var ctxT = document.getElementById('chartWdTrend');
+      if (ctxT && d.monthly) {
+        _charts.wdTrend = new Chart(ctxT, {
+          type:'line',
+          data:{
+            labels: d.monthly.map(function(m){ return m.label; }),
+            datasets:[{
+              label:'เบิกออก',
+              data:d.monthly.map(function(m){ return m.withdraw; }),
+              borderColor:'#8b5cf6',
+              backgroundColor:'rgba(139,92,246,0.15)',
+              fill:true,
+              tension:0.3,
+              pointRadius:4,
+              pointBackgroundColor:'#8b5cf6'
+            }]
+          },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{font:{family:'Sarabun',size:11}},grid:{color:'#f3f4f6'}},x:{ticks:{font:{family:'Sarabun',size:11}},grid:{display:false}}} }
+        });
+      }
+      // Category withdrawal bar chart
+      if (_charts.wdCat) _charts.wdCat.destroy();
+      var ctxW = document.getElementById('chartWdCat');
+      if (ctxW && withdrawals.length > 0) {
+        var catTotals = {};
+        withdrawals.forEach(function(w){
+          var item = _itemsData.find(function(i){ return i.id === w.item_id; });
+          var cat = item ? (item.category || 'ไม่ระบุหมวด') : 'ไม่ระบุหมวด';
+          catTotals[cat] = (catTotals[cat] || 0) + (w.quantity || 0);
+        });
+        var catKeys = Object.keys(catTotals).sort(function(a,b){ return catTotals[b] - catTotals[a]; }).slice(0,6);
+        var catVals = catKeys.map(function(k){ return catTotals[k]; });
+        var barColors = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4'];
+        _charts.wdCat = new Chart(ctxW, {
+          type:'bar',
+          data:{ labels:catKeys, datasets:[{ label:'จำนวนเบิก', data:catVals, backgroundColor:barColors.slice(0,catKeys.length), borderRadius:6, barPercentage:0.6 }] },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:function(c){ return c.raw + ' รายการ'; }}}}, scales:{y:{ticks:{font:{family:'Sarabun',size:11}},grid:{color:'#f3f4f6'}},x:{ticks:{font:{family:'Sarabun',size:10}},grid:{display:false}}} }
+        });
+      } else if (ctxW) {
+        // ถ้าไม่มีข้อมูลการเบิก แสดงข้อความ
+        ctxW.parentNode.innerHTML = '<div class="flex items-center justify-center h-full text-sm text-gray-400">ยังไม่มีข้อมูลการเบิก</div>';
       }
     }, 100);
 
@@ -1896,30 +1953,62 @@ function loadMonthlyReport() {
   }).catch(function() { hideLoading(); showError('โหลดข้อมูลไม่สำเร็จ'); });
 }
 
+function downloadXlsx(rows, headers, filename) {
+  if (!window.XLSX) { showError('ไม่พบ library XLSX'); return; }
+  var data = rows.map(function(r) {
+    var obj = {};
+    headers.forEach(function(h) { obj[h.title] = r[h.key] !== undefined ? r[h.key] : ''; });
+    return obj;
+  });
+  var ws = XLSX.utils.json_to_sheet(data);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  XLSX.writeFile(wb, filename + '.xlsx');
+}
+
 function exportReport(type) {
   showLoading('กำลัง Export...');
-  callAPI('generateExportUrl', AUTH.token, type, { status:'all' }).then(function(res) {
+  var apiFn = type === 'receives' ? 'getReceives' : type === 'withdrawals' ? 'getWithdrawals' : 'getTransactions';
+  callAPI(apiFn, AUTH.token, {}).then(function(res) {
     hideLoading();
-    if (res.success) { window.open(res.url, '_blank'); }
-    else showError(res.message);
+    if (!res.success) { showError(res.message); return; }
+    var data = res.data || [];
+    var rows, headers;
+    if (type === 'receives') {
+      headers = [{key:'receive_no',title:'เลขที่'},{key:'date',title:'วันที่'},{key:'item_name',title:'รายการ'},{key:'quantity',title:'จำนวน'},{key:'created_by_name',title:'ผู้รับ'},{key:'note',title:'หมายเหตุ'}];
+      rows = data.map(function(r){ var item=_itemsData.find(function(i){return i.id===r.item_id})||{}; return {receive_no:r.receive_no||'', date:(r.date||'').split('T')[0], item_name:item.name||r.item_id, quantity:r.quantity||0, created_by_name:r.created_by_name||'', note:r.note||''}; });
+    } else if (type === 'withdrawals') {
+      headers = [{key:'withdraw_no',title:'เลขที่'},{key:'date',title:'วันที่'},{key:'item_name',title:'รายการ'},{key:'quantity',title:'จำนวน'},{key:'requester_name',title:'ผู้เบิก'},{key:'status',title:'สถานะ'},{key:'purpose',title:'วัตถุประสงค์'}];
+      rows = data.map(function(w){ var item=_itemsData.find(function(i){return i.id===w.item_id})||{}; return {withdraw_no:w.withdraw_no||'', date:(w.date||'').split('T')[0], item_name:item.name||w.item_id, quantity:w.quantity||0, requester_name:w.requester_name||'', status:w.status==='approved'?'อนุมัติ':w.status==='rejected'?'ปฏิเสธ':'รออนุมัติ', purpose:w.purpose||''}; });
+    } else {
+      headers = [{key:'type',title:'ประเภท'},{key:'date',title:'วันที่'},{key:'item_name',title:'รายการ'},{key:'quantity',title:'จำนวน'},{key:'user_name',title:'ผู้ทำรายการ'},{key:'note',title:'หมายเหตุ'}];
+      rows = data.map(function(t){ var item=_itemsData.find(function(i){return i.id===t.item_id})||{}; return {type:t.type==='receive'?'รับเข้า':'เบิกออก', date:(t.date||'').split('T')[0], item_name:item.name||t.item_id, quantity:t.quantity||0, user_name:t.user_name||'', note:t.note||''}; });
+    }
+    downloadXlsx(rows, headers, 'รายงาน_' + type);
   }).catch(function() { hideLoading(); showError('Export ไม่สำเร็จ'); });
 }
 
 function exportMonthlyExcel(year, month) {
   showLoading('กำลัง Export...');
-  callAPI('generateExportUrl', AUTH.token, 'monthly', { year:year, month:month }).then(function(res) {
+  callAPI('getMonthlyReport', AUTH.token, year, month).then(function(res) {
     hideLoading();
-    if (res.success) { window.open(res.url, '_blank'); }
-    else showError(res.message);
+    if (!res.success) { showError(res.message); return; }
+    var data = res.data || [];
+    var headers = [{key:'item_name',title:'ชื่อวัสดุ'},{key:'total_requested',title:'จำนวนขอเบิก'},{key:'total_approved',title:'จำนวนอนุมัติ'}];
+    var rows = data.map(function(d){ return {item_name:d.item_name||'', total_requested:d.total_requested||0, total_approved:d.total_approved||0}; });
+    downloadXlsx(rows, headers, 'รายงานเบิก_' + month + '_' + (year+543));
   }).catch(function() { hideLoading(); showError('Export ไม่สำเร็จ'); });
 }
 
 function exportLowStock() {
   showLoading('กำลัง Export...');
-  callAPI('generateExportUrl', AUTH.token, 'low_stock', {}).then(function(res) {
+  callAPI('getItems', AUTH.token).then(function(res) {
     hideLoading();
-    if (res.success) { window.open(res.url, '_blank'); }
-    else showError(res.message);
+    if (!res.success) { showError(res.message); return; }
+    var items = (res.data || []).filter(function(i){ return i.active !== false && i.current_stock <= i.min_stock; });
+    var headers = [{key:'item_code',title:'รหัส'},{key:'name',title:'ชื่อวัสดุ'},{key:'category',title:'หมวดหมู่'},{key:'current_stock',title:'คงเหลือ'},{key:'min_stock',title:'ขั้นต่ำ'},{key:'unit',title:'หน่วย'}];
+    var rows = items.map(function(i){ return {item_code:i.item_code||'', name:i.name||'', category:i.category||'', current_stock:i.current_stock||0, min_stock:i.min_stock||0, unit:i.unit||''}; });
+    downloadXlsx(rows, headers, 'รายงานสต็อกต่ำ');
   }).catch(function() { hideLoading(); showError('Export ไม่สำเร็จ'); });
 }
 
