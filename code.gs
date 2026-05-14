@@ -11,9 +11,9 @@ const CONFIG = {
   LOW_STOCK_DEFAULT: 5,
   SALT: 'SUP_SYS_2569_SALT',
   ADMIN_USERS: {
-    'admin':   { password: 'admin1234',  role: 'admin',    name: 'ผู้ดูแลระบบ',  email: 'admin@school.ac.th' },
-    'staff01': { password: 'staff1234',  role: 'staff',    name: 'เจ้าหน้าที่คลัง', email: 'staff@school.ac.th' },
-    'emp01':   { password: 'emp1234',    role: 'employee', name: 'พนักงาน 01',   email: 'emp@school.ac.th' }
+    'admin':    { password: '123456', role: 'admin',    name: 'ผู้ดูแลระบบ',     email: 'admin@school.ac.th' },
+    'staff':    { password: '123456', role: 'staff',    name: 'เจ้าหน้าที่คลัง',  email: 'staff@school.ac.th' },
+    'employee': { password: '123456', role: 'employee', name: 'พนักงาน 01',      email: 'emp@school.ac.th' }
   },
   USER_ROLES: {
     'admin':    { name: 'ผู้ดูแลระบบ',    permissions: ['all'] },
@@ -95,6 +95,79 @@ function include(filename) {
  * initializeSheets — สร้าง/ตรวจสอบ Sheets ทั้งหมด
  * เรียกทุกครั้งที่ doGet ทำงาน (ปลอดภัยถ้ามีอยู่แล้ว)
  */
+/**
+ * doOptions — CORS preflight
+ */
+function doOptions(e) {
+  var output = ContentService.createTextOutput('');
+  output.setMimeType(ContentService.MimeType.TEXT);
+  return output;
+}
+
+/**
+ * doPost — JSON API endpoint สำหรับ frontend static site
+ */
+function doPost(e) {
+  try {
+    initializeSheets();
+    var fn, args = [];
+    if (e.postData && e.postData.type === 'application/json') {
+      var payload = JSON.parse(e.postData.contents);
+      fn = payload.fn;
+      args = payload.args || [];
+    } else {
+      fn = e.parameter.fn;
+      try { args = JSON.parse(e.parameter.args || '[]'); } catch(err) { args = []; }
+    }
+
+    var result;
+    switch (fn) {
+      case 'login':               result = login(args[0], args[1], args[2]); break;
+      case 'validateSession':     result = validateSession(args[0]); break;
+      case 'logout':              result = logout(args[0]); break;
+      case 'forgotPassword':      result = forgotPassword(args[0]); break;
+      case 'getItems':            result = getItems(args[0]); break;
+      case 'getItemById':         result = getItemById(args[0], args[1]); break;
+      case 'addItem':             result = addItem(args[0], args[1]); break;
+      case 'updateItem':          result = updateItem(args[0], args[1], args[2]); break;
+      case 'deleteItem':          result = deleteItem(args[0], args[1]); break;
+      case 'addReceive':          result = addReceive(args[0], args[1]); break;
+      case 'getReceives':         result = getReceives(args[0], args[1]); break;
+      case 'addWithdrawal':       result = addWithdrawal(args[0], args[1]); break;
+      case 'getWithdrawals':      result = getWithdrawals(args[0], args[1]); break;
+      case 'approveWithdrawal':   result = approveWithdrawal(args[0], args[1], args[2]); break;
+      case 'rejectWithdrawal':    result = rejectWithdrawal(args[0], args[1], args[2]); break;
+      case 'getTransactions':     result = getTransactions(args[0], args[1]); break;
+      case 'getDashboardStats':   result = getDashboardStats(args[0]); break;
+      case 'getUsers':            result = getUsers(args[0]); break;
+      case 'addUser':             result = addUser(args[0], args[1]); break;
+      case 'updateUser':          result = updateUser(args[0], args[1], args[2]); break;
+      case 'changePassword':      result = changePassword(args[0], args[1], args[2]); break;
+      case 'resetUserPassword':   result = resetUserPassword(args[0], args[1]); break;
+      case 'toggleUserActive':    result = toggleUserActive(args[0], args[1]); break;
+      case 'saveConfig':          result = saveConfig(args[0], args[1]); break;
+      case 'getConfig':           result = { success: true, data: getConfig() }; break;
+      case 'getMonthlyReport':    result = getMonthlyReport(args[0], args[1], args[2]); break;
+      case 'generateExportUrl':   result = generateExportUrl(args[0], args[1], args[2]); break;
+      case 'uploadFile':          result = uploadFile(args[0], args[1], args[2], args[3]); break;
+      case 'testTelegram':        result = testTelegram(args[0]); break;
+      default:
+        result = { success: false, message: 'Unknown function: ' + fn };
+    }
+
+    return jsonResponse(result);
+  } catch(err) {
+    logError('doPost', err);
+    return jsonResponse({ success: false, message: err.message || String(err) });
+  }
+}
+
+function jsonResponse(data) {
+  var output = ContentService.createTextOutput(JSON.stringify(data));
+  output.setMimeType(ContentService.MimeType.JSON);
+  return output;
+}
+
 function initializeSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheetNames = ss.getSheets().map(function(s){ return s.getName(); });
