@@ -1779,11 +1779,17 @@ function buildApprovePage(filterStatus) {
 }
 
 function openApproveModal(wdId, qty) {
-  var body = '<div class="space-y-4">'
-    + '<p class="text-sm text-gray-600">ยืนยันอนุมัติคำขอเบิก? คุณสามารถปรับจำนวนที่อนุมัติได้</p>'
-    + '<div><label class="form-label">จำนวนที่อนุมัติ *</label>'
-    + '<input type="number" id="approveQty" value="' + qty + '" min="1" max="' + qty + '" class="form-input">'
-    + '<p class="text-xs text-gray-400 mt-1">จำนวนที่ขอ: ' + qty + '</p></div></div>';
+  var wd = _wdData.find(function(w){ return w.id === wdId; });
+  var item = wd && _itemsData.find(function(i){ return i.id === wd.item_id; });
+  var img = item ? imgUrl(item.image_file_id) : '';
+  var imgHtml = img ? '<div class="flex justify-center"><img src="' + img + '" class="w-24 h-24 object-cover rounded-xl border border-gray-200 shadow-sm"></div>' : '';
+  var body = '<div class="space-y-4">';
+  body += imgHtml;
+  body += '<div class="text-center"><p class="font-semibold text-gray-800">' + escHtml((wd && wd.item_name) || '-') + '</p>';
+  body += '<p class="text-xs text-gray-500">ผู้ขอเบิก: <b>' + escHtml((wd && wd.requested_by_name) || '-') + '</b> • วัตถุประสงค์: ' + escHtml((wd && wd.purpose) || '-') + '</p></div>';
+  body += '<div><label class="form-label">จำนวนที่อนุมัติ *</label>';
+  body += '<input type="number" id="approveQty" value="' + qty + '" min="1" max="' + qty + '" class="form-input">';
+  body += '<p class="text-xs text-gray-400 mt-1">จำนวนที่ขอ: ' + qty + ' ' + escHtml((wd && wd.unit) || '') + '</p></div></div>';
   var footer = '<button onclick="closeModal()" class="btn-secondary">ยกเลิก</button>'
     + '<button onclick="doApprove(\'' + wdId + '\')" class="btn-success"><i class="fi fi-rr-check mr-1"></i>ยืนยันอนุมัติ</button>';
   openModal('อนุมัติการเบิก', body, footer);
