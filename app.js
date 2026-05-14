@@ -232,7 +232,7 @@ function loadPage(page) {
   var titles = {
     dashboard:'ภาพรวมระบบ', stock:'สต็อกคงเหลือ', items:'รายการวัสดุ',
     receive:'รับวัสดุเข้าคลัง', stocktake:'นับสต็อก', printqr:'พิมพ์ QR สติ๊กเกอร์', withdraw:'เบิกวัสดุ', approve:'อนุมัติการเบิก',
-    transactions:'ประวัติเคลื่อนไหว', reports:'รายงาน', qrscanner:'สแกน QR',
+    transactions:'ประวัติเคลื่อนไหว', reports:'รายงาน',
     users:'จัดการผู้ใช้งาน', settings:'ตั้งค่าระบบ', profile:'โปรไฟล์'
   };
   document.getElementById('pageTitle').textContent = titles[page] || page;
@@ -255,7 +255,6 @@ function loadPage(page) {
   else if (page === 'users')        renderUsers();
   else if (page === 'settings')     renderSettings();
   else if (page === 'profile')      renderProfile();
-  else if (page === 'qrscanner')    renderQRScanner();
 }
 
 function toggleSidebar() {
@@ -1521,10 +1520,73 @@ function openWithdrawSelectModal() {
 }
 function _openWdSelect() {
   var body = '<div class="space-y-3">'
-    + '<div class="relative"><i class="fi fi-rr-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>'
+    + '<div class="flex gap-2">'
+    + '<div class="relative flex-1"><i class="fi fi-rr-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>'
     + '<input type="text" id="wdItemSearch" placeholder="ค้นหาวัสดุ..." onkeyup="filterWdItemList()" class="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"></div>'
-    + '<div id="wdItemList" class="max-h-72 overflow-y-auto space-y-1">' + buildWdItemList(_itemsData) + '</div></div>';
+    + '<button onclick="startWdQRScanner()" class="btn-primary px-3 py-2.5 rounded-xl" title="สแกน QR"><i class="fi fi-rr-qr-scan text-lg"></i></button></div>'
+    + '<div id="wdItemList" class="max-h-72 overflow-y-auto space-y-1">' + buildWdItemList(_itemsData) + '</div>'
+    + '<div id="wdQRReader" class="hidden"></div></div>';
   openModal('เลือกรายการวัสดุที่ต้องการเบิก', body, '<button onclick="closeModal()" class="btn-secondary">ยกเลิก</button>');
+}
+function startWdQRScanner() {
+  document.getElementById('wdItemSearch').parentNode.parentNode.classList.add('hidden');
+  document.getElementById('wdItemList').classList.add('hidden');
+  var qrDiv = document.getElementById('wdQRReader');
+  qrDiv.classList.remove('hidden');
+  qrDiv.innerHTML = '<div class="text-center py-4"><div id="wd-qr-reader" class="mx-auto" style="width:280px"></div><button onclick="stopWdQRScanner()" class="btn-secondary btn-sm mt-3"><i class="fi fi-rr-cross mr-1"></i>ปิดกล้อง</button></div>';
+  setTimeout(function() {
+    try {
+      _qrScanner = new Html5Qrcode('wd-qr-reader');
+      _qrScanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        function(decodedText) {
+          stopWdQRScanner();
+          try {
+            var url = new URL(decodedText);
+            var action = url.searchParams.get('action');
+            var itemId = url.searchParams.get('item_id');
+            if (action === 'withdraw' && itemId) {
+              closeModal();
+              openWithdrawFromQR(itemId);
+            } else {
+              showError('QR Code ไม่ถูกต้อง');
+              stopWdQRScanner();
+            }
+          } catch(e) {
+            showError('QR Code ไม่ถูกต้อง');
+            stopWdQRScanner();
+          }
+        },
+        function(errorMessage) {}
+      ).catch(function(err) {
+        console.error(err);
+        showError('ไม่สามารถเปิดกล้องได้');
+      });
+    } catch(e) {
+      console.error(e);
+      showError('เบราว์เซอร์นี้ไม่รองรับการใช้งานกล้อง');
+    }
+  }, 200);
+}
+function stopWdQRScanner() {
+  if (_qrScanner) {
+    _qrScanner.stop().then(function() {
+      _qrScanner = null;
+      document.getElementById('wdItemSearch').parentNode.parentNode.classList.remove('hidden');
+      document.getElementById('wdItemList').classList.remove('hidden');
+      document.getElementById('wdQRReader').classList.add('hidden');
+    }).catch(function() {
+      _qrScanner = null;
+      document.getElementById('wdItemSearch').parentNode.parentNode.classList.remove('hidden');
+      document.getElementById('wdItemList').classList.remove('hidden');
+      document.getElementById('wdQRReader').classList.add('hidden');
+    });
+  } else {
+    document.getElementById('wdItemSearch').parentNode.parentNode.classList.remove('hidden');
+    document.getElementById('wdItemList').classList.remove('hidden');
+    document.getElementById('wdQRReader').classList.add('hidden');
+  }
 }
 function buildWdItemList(data) {
   if (data.length === 0) return '<p class="text-center text-sm text-gray-400 py-4">ไม่พบรายการ</p>';
