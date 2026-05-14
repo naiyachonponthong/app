@@ -605,8 +605,10 @@ function buildItemsPage() {
   html += '<select id="itemStockFilter" onchange="applyItemFilter()" class="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500">';
   html += '<option value="all">สต็อกทั้งหมด</option><option value="low" ' + (_itemsFilter.stock==='low'?'selected':'') + '>ใกล้หมด</option><option value="ok" ' + (_itemsFilter.stock==='ok'?'selected':'') + '>ปกติ</option>';
   html += '</select></div>';
-  html += '<button onclick="openAddItemModal()" class="btn-primary flex items-center gap-2 whitespace-nowrap">';
-  html += '<i class="fi fi-rr-plus"></i> เพิ่มวัสดุใหม่</button></div>';
+  html += '<div class="flex gap-2">';
+  html += '<button onclick="downloadCSVSample()" class="btn-secondary flex items-center gap-2 whitespace-nowrap btn-sm"><i class="fi fi-rr-download"></i> ไฟล์ตัวอย่าง</button>';
+  html += '<button onclick="openImportCSVModal()" class="btn-success flex items-center gap-2 whitespace-nowrap btn-sm"><i class="fi fi-rr-upload"></i> นำเข้า CSV</button>';
+  html += '<button onclick="openAddItemModal()" class="btn-primary flex items-center gap-2 whitespace-nowrap"><i class="fi fi-rr-plus"></i> เพิ่มวัสดุใหม่</button></div></div>';
 
   html += '<div class="flex gap-2 flex-wrap text-xs">';
   html += '<span class="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full font-medium"><i class="fi fi-rr-box-open-full mr-1"></i>ทั้งหมด: ' + _itemsData.length + '</span>';
@@ -702,6 +704,91 @@ function applyItemFilter() {
   _itemsFilter.stock    = (document.getElementById('itemStockFilter') || {}).value || 'all';
   _itemsPage = 1;
   buildItemsPage();
+}
+
+function downloadCSVSample() {
+  var csv = 'รหัส,ชื่อวัสดุ,ขนาด,หน่วย,หมวดหมู่,สต็อกเริ่มต้น,สต็อกขั้นต่ำ,รายละเอียด\n';
+  csv += 'SUP-001,ถุงมือยาง (ไม่มีแป้ง) สีฟ้า,size S,กล่อง,อุปกรณ์ป้องกัน,20,5,ถุงมือยางไม่มีแป้งสำหรับงานทั่วไป\n';
+  csv += 'SUP-002,ถุงมือยาง (ไม่มีแป้ง) สีฟ้า,size M,กล่อง,อุปกรณ์ป้องกัน,15,5,ถุงมือยางไม่มีแป้งสำหรับงานทั่วไป\n';
+  csv += 'SUP-003,สำลี,200 g.,ถุง,วัสถุดิบทางการแพทย์,50,10,สำลีสะอาดบริสุทธิ์ 200 กรัม\n';
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'ตัวอย่าง_รายการวัสดุ.csv';
+  link.click();
+}
+
+function openImportCSVModal() {
+  var body = '<div class="space-y-4">';
+  body += '<p class="text-sm text-gray-600">อัปโหลดไฟล์ CSV ตามรูปแบบตัวอย่าง ระบบจะเพิ่มรายการวัสดุใหม่ทั้งหมดที่มีในไฟล์</p>';
+  body += '<input type="file" id="csvImportFile" accept=".csv" class="form-input py-1.5">';
+  body += '<div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">';
+  body += '<p class="font-semibold mb-1">หมายเหตุ</p>';
+  body += '<ul class="list-disc list-inside space-y-0.5">';
+  body += '<li>รองรับไฟล์ .csv เท่านั้น (UTF-8)</li>';
+  body += '<li>คอลัมน์: รหัส,ชื่อวัสดุ,ขนาด,หน่วย,หมวดหมู่,สต็อกเริ่มต้น,สต็อกขั้นต่ำ,รายละเอียด</li>';
+  body += '<li>หากไม่มีรหัส ระบบจะสร้างรหัสอัตโนมัติ</li>';
+  body += '</ul></div>';
+  body += '<div id="csvImportPreview" class="hidden"></div>';
+  body += '</div>';
+  var footer = '<button onclick="closeModal()" class="btn-secondary">ยกเลิก</button>'
+    + '<button onclick="handleCSVImport()" class="btn-success"><i class="fi fi-rr-upload mr-1"></i>นำเข้า</button>';
+  openModal('นำเข้ารายการวัสดุจาก CSV', body, footer);
+}
+
+function parseCSV(text) {
+  var lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(function(l){ return l.trim() !== ''; });
+  if (lines.length < 2) return [];
+  var headers = lines[0].split(',').map(function(h){ return h.trim(); });
+  var rows = [];
+  for (var i = 1; i < lines.length; i++) {
+    var cols = lines[i].split(',');
+    if (cols.length < 2) continue;
+    var row = {};
+    headers.forEach(function(h, idx){ row[h] = (cols[idx] || '').trim(); });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function handleCSVImport() {
+  var input = document.getElementById('csvImportFile');
+  if (!input || !input.files[0]) { showError('กรุณาเลือกไฟล์ CSV'); return; }
+  var file = input.files[0];
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var rows = parseCSV(e.target.result);
+    if (rows.length === 0) { showError('ไม่พบข้อมูลในไฟล์'); return; }
+    showConfirm('ยืนยันนำเข้า', 'พบ ' + rows.length + ' รายการ ยืนยันนำเข้า?', function() {
+      showLoading('กำลังนำเข้า ' + rows.length + ' รายการ...');
+      var promises = rows.map(function(row) {
+        var itemCode = row['รหัส'] || '';
+        var name = row['ชื่อวัสดุ'] || '';
+        if (!name) return Promise.resolve({ success: false, message: 'ขาดชื่อวัสดุ' });
+        var data = {
+          item_code: itemCode,
+          name: name,
+          size: row['ขนาด'] || '',
+          unit: row['หน่วย'] || 'ชิ้น',
+          category: row['หมวดหมู่'] || '',
+          current_stock: parseInt(row['สต็อกเริ่มต้น'] || 0),
+          min_stock: parseInt(row['สต็อกขั้นต่ำ'] || 5),
+          description: row['รายละเอียด'] || ''
+        };
+        return callAPI('addItem', AUTH.token, data);
+      });
+      Promise.all(promises).then(function(results) {
+        hideLoading(); closeModal();
+        var ok = results.filter(function(r){ return r && r.success; }).length;
+        var fail = results.length - ok;
+        if (fail > 0) showError('นำเข้าสำเร็จ ' + ok + ' รายการ ล้มเหลว ' + fail + ' รายการ');
+        else showSuccess('นำเข้าสำเร็จ ' + ok + ' รายการ');
+        _itemsCacheTime = 0;
+        renderItems();
+      }).catch(function() { hideLoading(); showError('เกิดข้อผิดพลาด'); });
+    });
+  };
+  reader.readAsText(file, 'UTF-8');
 }
 
 function openAddItemModal() {
