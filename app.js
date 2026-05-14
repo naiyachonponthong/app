@@ -720,10 +720,12 @@ function downloadCSVSample() {
   link.click();
 }
 
+var _csvImportRows = [];
 function openImportCSVModal() {
+  _csvImportRows = [];
   var body = '<div class="space-y-4">';
-  body += '<p class="text-sm text-gray-600">อัปโหลดไฟล์ CSV ตามรูปแบบตัวอย่าง ระบบจะเพิ่มรายการวัสดุใหม่ทั้งหมดที่มีในไฟล์</p>';
-  body += '<input type="file" id="csvImportFile" accept=".csv" class="form-input py-1.5">';
+  body += '<p class="text-sm text-gray-600">อัปโหลดไฟล์ CSV ตามรูปแบบตัวอย่าง ระบบจะแสดงตัวอย่างข้อมูลก่อนนำเข้า</p>';
+  body += '<input type="file" id="csvImportFile" accept=".csv" onchange="previewCSVImport()" class="form-input py-1.5">';
   body += '<div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">';
   body += '<p class="font-semibold mb-1">หมายเหตุ</p>';
   body += '<ul class="list-disc list-inside space-y-0.5">';
@@ -731,11 +733,37 @@ function openImportCSVModal() {
   body += '<li>คอลัมน์: รหัส,ชื่อวัสดุ,ขนาด,หน่วย,หมวดหมู่,สต็อกเริ่มต้น,สต็อกขั้นต่ำ,รายละเอียด</li>';
   body += '<li>หากไม่มีรหัส ระบบจะสร้างรหัสอัตโนมัติ</li>';
   body += '</ul></div>';
-  body += '<div id="csvImportPreview" class="hidden"></div>';
+  body += '<div id="csvImportPreview"></div>';
   body += '</div>';
   var footer = '<button onclick="closeModal()" class="btn-secondary">ยกเลิก</button>'
     + '<button onclick="handleCSVImport()" class="btn-success"><i class="fi fi-rr-upload mr-1"></i>นำเข้า</button>';
   openModal('นำเข้ารายการวัสดุจาก CSV', body, footer);
+}
+
+function previewCSVImport() {
+  var input = document.getElementById('csvImportFile');
+  var previewDiv = document.getElementById('csvImportPreview');
+  if (!input || !input.files[0]) { previewDiv.innerHTML = ''; return; }
+  var file = input.files[0];
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    _csvImportRows = parseCSV(e.target.result);
+    if (_csvImportRows.length === 0) { previewDiv.innerHTML = '<p class="text-sm text-red-500">ไม่พบข้อมูลในไฟล์</p>'; return; }
+    var html = '<p class="text-sm font-medium text-gray-700 mb-2">ตัวอย่างข้อมูล (' + _csvImportRows.length + ' รายการ)</p>';
+    html += '<div class="max-h-64 overflow-y-auto border border-gray-200 rounded-xl">';
+    html += '<table class="w-full text-xs"><thead class="bg-gray-50 text-gray-600 sticky top-0">';
+    html += '<tr><th class="px-2 py-1.5 text-left">รหัส</th><th class="px-2 py-1.5 text-left">ชื่อ</th><th class="px-2 py-1.5 text-left">หน่วย</th><th class="px-2 py-1.5 text-center">สต็อก</th><th class="px-2 py-1.5 text-center">ขั้นต่ำ</th></tr></thead><tbody class="divide-y divide-gray-100">';
+    _csvImportRows.forEach(function(row) {
+      html += '<tr><td class="px-2 py-1.5">' + escHtml(row['รหัส'] || '-') + '</td>';
+      html += '<td class="px-2 py-1.5">' + escHtml(row['ชื่อวัสดุ'] || '') + '</td>';
+      html += '<td class="px-2 py-1.5">' + escHtml(row['หน่วย'] || '') + '</td>';
+      html += '<td class="px-2 py-1.5 text-center">' + escHtml(row['สต็อกเริ่มต้น'] || '0') + '</td>';
+      html += '<td class="px-2 py-1.5 text-center">' + escHtml(row['สต็อกขั้นต่ำ'] || '5') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    previewDiv.innerHTML = html;
+  };
+  reader.readAsText(file, 'UTF-8');
 }
 
 function parseCSV(text) {
@@ -754,43 +782,36 @@ function parseCSV(text) {
 }
 
 function handleCSVImport() {
-  var input = document.getElementById('csvImportFile');
-  if (!input || !input.files[0]) { showError('กรุณาเลือกไฟล์ CSV'); return; }
-  var file = input.files[0];
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    var rows = parseCSV(e.target.result);
-    if (rows.length === 0) { showError('ไม่พบข้อมูลในไฟล์'); return; }
-    showConfirm('ยืนยันนำเข้า', 'พบ ' + rows.length + ' รายการ ยืนยันนำเข้า?', function() {
-      showLoading('กำลังนำเข้า ' + rows.length + ' รายการ...');
-      var promises = rows.map(function(row) {
-        var itemCode = row['รหัส'] || '';
-        var name = row['ชื่อวัสดุ'] || '';
-        if (!name) return Promise.resolve({ success: false, message: 'ขาดชื่อวัสดุ' });
-        var data = {
-          item_code: itemCode,
-          name: name,
-          size: row['ขนาด'] || '',
-          unit: row['หน่วย'] || 'ชิ้น',
-          category: row['หมวดหมู่'] || '',
-          current_stock: parseInt(row['สต็อกเริ่มต้น'] || 0),
-          min_stock: parseInt(row['สต็อกขั้นต่ำ'] || 5),
-          description: row['รายละเอียด'] || ''
-        };
-        return callAPI('addItem', AUTH.token, data);
-      });
-      Promise.all(promises).then(function(results) {
-        hideLoading(); closeModal();
-        var ok = results.filter(function(r){ return r && r.success; }).length;
-        var fail = results.length - ok;
-        if (fail > 0) showError('นำเข้าสำเร็จ ' + ok + ' รายการ ล้มเหลว ' + fail + ' รายการ');
-        else showSuccess('นำเข้าสำเร็จ ' + ok + ' รายการ');
-        _itemsCacheTime = 0;
-        renderItems();
-      }).catch(function() { hideLoading(); showError('เกิดข้อผิดพลาด'); });
+  var rows = _csvImportRows;
+  if (!rows || rows.length === 0) { showError('กรุณาเลือกไฟล์ CSV ก่อน'); return; }
+  showConfirm('ยืนยันนำเข้า', 'พบ ' + rows.length + ' รายการ ยืนยันนำเข้า?', function() {
+    showLoading('กำลังนำเข้า ' + rows.length + ' รายการ...');
+    var promises = rows.map(function(row) {
+      var itemCode = row['รหัส'] || '';
+      var name = row['ชื่อวัสดุ'] || '';
+      if (!name) return Promise.resolve({ success: false, message: 'ขาดชื่อวัสดุ' });
+      var data = {
+        item_code: itemCode,
+        name: name,
+        size: row['ขนาด'] || '',
+        unit: row['หน่วย'] || 'ชิ้น',
+        category: row['หมวดหมู่'] || '',
+        current_stock: parseInt(row['สต็อกเริ่มต้น'] || 0),
+        min_stock: parseInt(row['สต็อกขั้นต่ำ'] || 5),
+        description: row['รายละเอียด'] || ''
+      };
+      return callAPI('addItem', AUTH.token, data);
     });
-  };
-  reader.readAsText(file, 'UTF-8');
+    Promise.all(promises).then(function(results) {
+      hideLoading(); closeModal();
+      var ok = results.filter(function(r){ return r && r.success; }).length;
+      var fail = results.length - ok;
+      if (fail > 0) showError('นำเข้าสำเร็จ ' + ok + ' รายการ ล้มเหลว ' + fail + ' รายการ');
+      else showSuccess('นำเข้าสำเร็จ ' + ok + ' รายการ');
+      _itemsCacheTime = 0;
+      renderItems();
+    }).catch(function() { hideLoading(); showError('เกิดข้อผิดพลาด'); });
+  });
 }
 
 function openAddItemModal() {
