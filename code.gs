@@ -66,6 +66,49 @@ function doGet(e) {
   try {
     initializeSheets();
     var params = e ? e.parameter : {};
+
+    // API mode: ถ้ามี ?fn=xxx ให้ return JSON แทน HTML (สำหรับ static frontend)
+    if (params.fn) {
+      var fn = params.fn;
+      var args = [];
+      try { args = JSON.parse(params.args || '[]'); } catch(err) { args = []; }
+      var result;
+      switch (fn) {
+        case 'login':               result = login(args[0], args[1], args[2]); break;
+        case 'validateSession':     result = validateSession(args[0]); break;
+        case 'logout':              result = logout(args[0]); break;
+        case 'forgotPassword':      result = forgotPassword(args[0]); break;
+        case 'getItems':            result = getItems(args[0]); break;
+        case 'getItemById':         result = getItemById(args[0], args[1]); break;
+        case 'addItem':             result = addItem(args[0], args[1]); break;
+        case 'updateItem':          result = updateItem(args[0], args[1], args[2]); break;
+        case 'deleteItem':          result = deleteItem(args[0], args[1]); break;
+        case 'addReceive':          result = addReceive(args[0], args[1]); break;
+        case 'getReceives':         result = getReceives(args[0], args[1]); break;
+        case 'addWithdrawal':       result = addWithdrawal(args[0], args[1]); break;
+        case 'getWithdrawals':      result = getWithdrawals(args[0], args[1]); break;
+        case 'approveWithdrawal':   result = approveWithdrawal(args[0], args[1], args[2]); break;
+        case 'rejectWithdrawal':    result = rejectWithdrawal(args[0], args[1], args[2]); break;
+        case 'getTransactions':     result = getTransactions(args[0], args[1]); break;
+        case 'getDashboardStats':   result = getDashboardStats(args[0]); break;
+        case 'getUsers':            result = getUsers(args[0]); break;
+        case 'addUser':             result = addUser(args[0], args[1]); break;
+        case 'updateUser':          result = updateUser(args[0], args[1], args[2]); break;
+        case 'changePassword':      result = changePassword(args[0], args[1], args[2]); break;
+        case 'resetUserPassword':   result = resetUserPassword(args[0], args[1]); break;
+        case 'toggleUserActive':    result = toggleUserActive(args[0], args[1]); break;
+        case 'saveConfig':          result = saveConfig(args[0], args[1]); break;
+        case 'getConfig':           result = { success: true, data: getConfig() }; break;
+        case 'getMonthlyReport':    result = getMonthlyReport(args[0], args[1], args[2]); break;
+        case 'generateExportUrl':   result = generateExportUrl(args[0], args[1], args[2]); break;
+        case 'uploadFile':          result = uploadFile(args[0], args[1], args[2], args[3]); break;
+        case 'testTelegram':        result = testTelegram(args[0]); break;
+        default:
+          result = { success: false, message: 'Unknown function: ' + fn };
+      }
+      return jsonResponse(result);
+    }
+
     var template = HtmlService.createTemplateFromFile('index');
     var cfg = getConfig();
     template.appName = cfg.app_name || CONFIG.APP_NAME;
@@ -104,62 +147,8 @@ function doOptions(e) {
   return output;
 }
 
-/**
- * doPost — JSON API endpoint สำหรับ frontend static site
- */
 function doPost(e) {
-  try {
-    initializeSheets();
-    var fn, args = [];
-    if (e.postData && e.postData.type === 'application/json') {
-      var payload = JSON.parse(e.postData.contents);
-      fn = payload.fn;
-      args = payload.args || [];
-    } else {
-      fn = e.parameter.fn;
-      try { args = JSON.parse(e.parameter.args || '[]'); } catch(err) { args = []; }
-    }
-
-    var result;
-    switch (fn) {
-      case 'login':               result = login(args[0], args[1], args[2]); break;
-      case 'validateSession':     result = validateSession(args[0]); break;
-      case 'logout':              result = logout(args[0]); break;
-      case 'forgotPassword':      result = forgotPassword(args[0]); break;
-      case 'getItems':            result = getItems(args[0]); break;
-      case 'getItemById':         result = getItemById(args[0], args[1]); break;
-      case 'addItem':             result = addItem(args[0], args[1]); break;
-      case 'updateItem':          result = updateItem(args[0], args[1], args[2]); break;
-      case 'deleteItem':          result = deleteItem(args[0], args[1]); break;
-      case 'addReceive':          result = addReceive(args[0], args[1]); break;
-      case 'getReceives':         result = getReceives(args[0], args[1]); break;
-      case 'addWithdrawal':       result = addWithdrawal(args[0], args[1]); break;
-      case 'getWithdrawals':      result = getWithdrawals(args[0], args[1]); break;
-      case 'approveWithdrawal':   result = approveWithdrawal(args[0], args[1], args[2]); break;
-      case 'rejectWithdrawal':    result = rejectWithdrawal(args[0], args[1], args[2]); break;
-      case 'getTransactions':     result = getTransactions(args[0], args[1]); break;
-      case 'getDashboardStats':   result = getDashboardStats(args[0]); break;
-      case 'getUsers':            result = getUsers(args[0]); break;
-      case 'addUser':             result = addUser(args[0], args[1]); break;
-      case 'updateUser':          result = updateUser(args[0], args[1], args[2]); break;
-      case 'changePassword':      result = changePassword(args[0], args[1], args[2]); break;
-      case 'resetUserPassword':   result = resetUserPassword(args[0], args[1]); break;
-      case 'toggleUserActive':    result = toggleUserActive(args[0], args[1]); break;
-      case 'saveConfig':          result = saveConfig(args[0], args[1]); break;
-      case 'getConfig':           result = { success: true, data: getConfig() }; break;
-      case 'getMonthlyReport':    result = getMonthlyReport(args[0], args[1], args[2]); break;
-      case 'generateExportUrl':   result = generateExportUrl(args[0], args[1], args[2]); break;
-      case 'uploadFile':          result = uploadFile(args[0], args[1], args[2], args[3]); break;
-      case 'testTelegram':        result = testTelegram(args[0]); break;
-      default:
-        result = { success: false, message: 'Unknown function: ' + fn };
-    }
-
-    return jsonResponse(result);
-  } catch(err) {
-    logError('doPost', err);
-    return jsonResponse({ success: false, message: err.message || String(err) });
-  }
+  return jsonResponse({ success: false, message: 'POST disabled. Use GET with ?fn=...&args=[...]' });
 }
 
 function jsonResponse(data) {
