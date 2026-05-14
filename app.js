@@ -853,14 +853,22 @@ function printQRLabel(itemJson) {
   var baseUrl = window.location.origin + window.location.pathname;
   var qrUrl  = baseUrl + '?action=withdraw&item_id=' + item.id;
   var win = window.open('', '_blank');
-  win.document.write('<html><head><title>QR — ' + item.name + '</title>'
-    + '<style>body{font-family:sans-serif;text-align:center;padding:20px}h3{margin:0 0 4px}p{margin:2px 0;font-size:12px;color:#555}</style></head>'
-    + '<body><h3>' + item.name + '</h3><p>' + item.item_code + ' | ' + (item.size||'') + ' | ' + item.unit + '</p>'
-    + '<div id="qr" style="display:inline-block;margin:12px 0"></div>'
-    + '<p style="font-size:10px;word-break:break-all;color:#888">' + qrUrl + '</p>'
+  var css = 'body{font-family:sarabun,sans-serif;margin:0;padding:0;background:#fff}' +
+    '.label{width:58mm;height:40mm;border:1.5px dashed #ccc;padding:3mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;margin:4mm auto}' +
+    '.name{font-size:11px;font-weight:700;color:#1a2566;margin:0 0 1mm;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.meta{font-size:8px;color:#666;margin:0 0 1mm}' +
+    '.qr-wrap{width:22mm;height:22mm;margin:0 auto}' +
+    '@media print{.label{border-style:solid!important;border-color:#333!important;page-break-inside:avoid;margin:2mm}}';
+  win.document.write('<html><head><title>ป้าย ' + item.name + '</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">'
+    + '<style>' + css + '</style></head><body>'
+    + '<div class="label">'
+    + '<p class="name">' + escHtml(item.name) + '</p>'
+    + '<p class="meta">' + escHtml(item.item_code) + (item.size ? ' • ' + escHtml(item.size) : '') + '</p>'
+    + '<div class="qr-wrap" id="qr"></div>'
+    + '</div>'
     + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>'
-    + '<script>new QRCode(document.getElementById("qr"),{text:"' + qrUrl + '",width:200,height:200,colorDark:"#1a2566"});'
-    + 'setTimeout(function(){window.print();window.close();},600);<\/script>'
+    + '<script>new QRCode(document.getElementById("qr"),{text:"' + qrUrl + '",width:80,height:80,colorDark:"#1a2566",correctLevel:QRCode.CorrectLevel.M});'
+    + 'setTimeout(function(){window.print();window.close();},700);<\/script>'
     + '</body></html>');
   win.document.close();
 }
