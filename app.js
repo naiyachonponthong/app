@@ -101,8 +101,7 @@ function getStockLabel(stock, min) {
 }
 function imgUrl(fileId, size) {
   if (!fileId) return '';
-  var url = API.getFileDataUrl(fileId);
-  return url || '';
+  return getFileDataUrl(fileId) || '';
 }
 
 // ===== PAGINATION =====
@@ -1911,9 +1910,11 @@ function doToggleUser(userId, name) {
 function renderSettings() {
   if (AUTH.user.role !== 'admin') { loadPage('dashboard'); return; }
   showLoading('โหลดการตั้งค่า...');
-  var cfg = API.getConfig();
-  hideLoading();
-  buildSettingsPage(cfg);
+  callAPI('getConfig', AUTH.token).then(function(res) {
+    hideLoading();
+    if (!res.success) { showError(res.message); return; }
+    buildSettingsPage(res.data);
+  }).catch(function(){ hideLoading(); showError('โหลดข้อมูลไม่สำเร็จ'); });
 }
 
 function buildSettingsPage(cfg) {
