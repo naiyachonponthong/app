@@ -238,20 +238,19 @@ function loadPage(page) {
   document.getElementById('sidebarOverlay').classList.add('hidden');
   var content = document.getElementById('mainContent');
   content.innerHTML = '<div class="flex items-center justify-center py-16"><div class="w-8 h-8 border-4 border-navy-600 border-t-transparent rounded-full animate-spin"></div></div>';
-  setTimeout(function() {
-    if (page === 'dashboard')    renderDashboard();
-    else if (page === 'stock')        renderStock();
-    else if (page === 'items')        renderItems();
-    else if (page === 'receive')      renderReceive();
-    else if (page === 'withdraw')     renderWithdraw();
-    else if (page === 'approve')      renderApprove();
-    else if (page === 'transactions') renderTransactions();
-    else if (page === 'reports')      renderReports();
-    else if (page === 'users')        renderUsers();
-    else if (page === 'settings')     renderSettings();
-    else if (page === 'profile')      renderProfile();
-    else if (page === 'qrscanner')    renderQRScanner();
-  }, 50);
+  // render ทันที ไม่ต้องรอ setTimeout
+  if (page === 'dashboard')    renderDashboard();
+  else if (page === 'stock')        renderStock();
+  else if (page === 'items')        renderItems();
+  else if (page === 'receive')      renderReceive();
+  else if (page === 'withdraw')     renderWithdraw();
+  else if (page === 'approve')      renderApprove();
+  else if (page === 'transactions') renderTransactions();
+  else if (page === 'reports')      renderReports();
+  else if (page === 'users')        renderUsers();
+  else if (page === 'settings')     renderSettings();
+  else if (page === 'profile')      renderProfile();
+  else if (page === 'qrscanner')    renderQRScanner();
 }
 
 function toggleSidebar() {
@@ -453,14 +452,24 @@ var _itemsData = [];
 var _itemsPage = 1;
 var _itemsFilter = { search:'', category:'all', stock:'all' };
 var _itemImageFileId = null;
+var _itemsCacheTime = 0;
+var ITEMS_CACHE_TTL = 30000; // 30 วินาที
 
 function renderItems() {
   if (AUTH.user.role !== 'admin') { loadPage('stock'); return; }
   showLoading('โหลดรายการวัสดุ...');
+  // reuse cache ถ้ายังไม่หมดอายุ
+  if (_itemsData.length > 0 && (Date.now() - _itemsCacheTime) < ITEMS_CACHE_TTL) {
+    hideLoading();
+    _itemsPage = 1;
+    buildItemsPage();
+    return;
+  }
   callAPI('getItems', AUTH.token).then(function(res) {
     hideLoading();
     if (!res.success) { showError(res.message); return; }
     _itemsData = res.data;
+    _itemsCacheTime = Date.now();
     _itemsPage  = 1;
     buildItemsPage();
   }).catch(function() { hideLoading(); showError('โหลดข้อมูลไม่สำเร็จ'); });
@@ -807,9 +816,18 @@ var _stockView = 'card';
 
 function renderStock() {
   showLoading('โหลดสต็อก...');
+  // reuse cache ถ้ายังไม่หมดอายุ
+  if (_itemsData.length > 0 && (Date.now() - _itemsCacheTime) < ITEMS_CACHE_TTL) {
+    hideLoading();
+    _stockData = _itemsData;
+    buildStockPage();
+    return;
+  }
   callAPI('getItems', AUTH.token).then(function(res) {
     hideLoading();
     if (!res.success) { showError(res.message); return; }
+    _itemsData = res.data;
+    _itemsCacheTime = Date.now();
     _stockData = res.data;
     buildStockPage();
   }).catch(function() { hideLoading(); showError('โหลดข้อมูลไม่สำเร็จ'); });
@@ -910,10 +928,10 @@ var _receivePage = 1;
 
 function renderReceive() {
   showLoading('โหลดข้อมูลรับเข้า...');
-  Promise.all([
-    callAPI('getItems', AUTH.token),
-    callAPI('getReceives', AUTH.token, {})
-  ]).then(function(results) {
+  var itemsPromise = (_itemsData.length > 0 && (Date.now() - _itemsCacheTime) < ITEMS_CACHE_TTL)
+    ? Promise.resolve({ success: true, data: _itemsData })
+    : callAPI('getItems', AUTH.token).then(function(res){ _itemsData = res.data||[]; _itemsCacheTime = Date.now(); return res; });
+  Promise.all([ itemsPromise, callAPI('getReceives', AUTH.token, {}) ]).then(function(results) {
     hideLoading();
     _itemsData   = results[0].data || [];
     _receiveData = results[1].data || [];
@@ -992,10 +1010,10 @@ var _wdFilter = 'all';
 
 function renderWithdraw() {
   showLoading('โหลดข้อมูล...');
-  Promise.all([
-    callAPI('getItems', AUTH.token),
-    callAPI('getWithdrawals', AUTH.token, { status:'all' })
-  ]).then(function(results) {
+  var itemsPromise = (_itemsData.length > 0 && (Date.now() - _itemsCacheTime) < ITEMS_CACHE_TTL)
+    ? Promise.resolve({ success: true, data: _itemsData })
+    : callAPI('getItems', AUTH.token).then(function(res){ _itemsData = res.data||[]; _itemsCacheTime = Date.now(); return res; });
+  Promise.all([ itemsPromise, callAPI('getWithdrawals', AUTH.token, { status:'all' }) ]).then(function(results) {
     hideLoading();
     _itemsData = results[0].data || [];
     _wdData    = results[1].data || [];
@@ -1146,16 +1164,14 @@ function openWithdrawModal(itemId) {
 
 function openWithdrawFromQR(itemId) {
   showLoading('โหลดข้อมูล...');
-  callAPI('getItems', AUTH.token).then(function(res) {
+  function _build(item) {
     hideLoading();
-    _itemsData = res.data || [];
-    var item = _itemsData.find(function(i){ return i.id == itemId; });
-    if (!item) item = _itemsData.find(function(i){ return i.item_code === itemId; });
-    if (!item) { showError('ไม่พบรายการวัสดุจาก QR (ID: ' + itemId + ')'); return; }
+    var img = imgUrl(item.image_file_id);
     var body = '<div class="space-y-4">';
     body += '<input type="hidden" id="wdItemId" value="' + itemId + '">';
     body += '<input type="hidden" id="wdViaQr" value="true">';
-    body += '<p class="text-sm text-gray-600">รายการ: <b>' + escHtml(item.name) + '</b> (คงเหลือ ' + item.current_stock + ' ' + item.unit + ')</p>';
+    if (img) body += '<div class="flex justify-center"><img src="' + img + '" class="w-24 h-24 object-cover rounded-xl border border-gray-200 shadow-sm"></div>';
+    body += '<p class="text-sm text-gray-600 text-center">รายการ: <b>' + escHtml(item.name) + '</b> (คงเหลือ ' + item.current_stock + ' ' + item.unit + ')</p>';
     body += fieldHTML('จำนวนที่ต้องการเบิก *', 'wdQty', 'number', 1);
     body += '<div class="sm:col-span-2"><label class="form-label">วัตถุประสงค์ *</label><input type="text" id="wdPurpose" class="form-input" placeholder="ระบุวัตถุประสงค์..."></div>';
     body += '<div class="sm:col-span-2"><label class="form-label">หมายเหตุ</label><textarea id="wdNote" class="form-input" rows="2"></textarea></div>';
@@ -1163,6 +1179,20 @@ function openWithdrawFromQR(itemId) {
     var footer = '<button onclick="closeModal()" class="btn-secondary">ยกเลิก</button>'
       + '<button onclick="submitWithdraw()" class="btn-primary"><i class="fi fi-rr-inbox-out mr-1"></i>ยื่นคำขอเบิก</button>';
     openModal('เบิกวัสดุ (QR)', body, footer);
+  }
+  // reuse cache ถ้ามี
+  if (_itemsData.length > 0 && (Date.now() - _itemsCacheTime) < ITEMS_CACHE_TTL) {
+    var item = _itemsData.find(function(i){ return i.id == itemId; });
+    if (!item) item = _itemsData.find(function(i){ return i.item_code === itemId; });
+    if (item) { _build(item); return; }
+  }
+  callAPI('getItems', AUTH.token).then(function(res) {
+    _itemsData = res.data || [];
+    _itemsCacheTime = Date.now();
+    var item = _itemsData.find(function(i){ return i.id == itemId; });
+    if (!item) item = _itemsData.find(function(i){ return i.item_code === itemId; });
+    if (!item) { hideLoading(); showError('ไม่พบรายการวัสดุจาก QR (ID: ' + itemId + ')'); return; }
+    _build(item);
   }).catch(function(){ hideLoading(); showError('โหลดข้อมูลไม่สำเร็จ'); });
 }
 
