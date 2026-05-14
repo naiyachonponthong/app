@@ -228,7 +228,7 @@ function loadPage(page) {
   });
   var titles = {
     dashboard:'ภาพรวมระบบ', stock:'สต็อกคงเหลือ', items:'รายการวัสดุ',
-    receive:'รับวัสดุเข้าคลัง', withdraw:'เบิกวัสดุ', approve:'อนุมัติการเบิก',
+    receive:'รับวัสดุเข้าคลัง', stocktake:'นับสต็อก', withdraw:'เบิกวัสดุ', approve:'อนุมัติการเบิก',
     transactions:'ประวัติเคลื่อนไหว', reports:'รายงาน', qrscanner:'สแกน QR',
     users:'จัดการผู้ใช้งาน', settings:'ตั้งค่าระบบ', profile:'โปรไฟล์'
   };
@@ -243,6 +243,7 @@ function loadPage(page) {
   else if (page === 'stock')        renderStock();
   else if (page === 'items')        renderItems();
   else if (page === 'receive')      renderReceive();
+  else if (page === 'stocktake')    renderStocktake();
   else if (page === 'withdraw')     renderWithdraw();
   else if (page === 'approve')      renderApprove();
   else if (page === 'transactions') renderTransactions();
@@ -1074,6 +1075,75 @@ function submitReceive() {
     if (res.success) { showSuccess(res.message); renderReceive(); }
     else showError(res.message);
   }).catch(function() { hideLoading(); showError('เกิดข้อผิดพลาด'); });
+}
+
+// ===== STOCKTAKE =====
+function renderStocktake() {
+  showLoading('โหลดข้อมูล...');
+  var itemsPromise = (_itemsData.length > 0 && (Date.now() - _itemsCacheTime) < ITEMS_CACHE_TTL)
+    ? Promise.resolve({ success: true, data: _itemsData })
+    : callAPI('getItems', AUTH.token).then(function(res){ _itemsData = res.data||[]; _itemsCacheTime = Date.now(); return res; });
+  itemsPromise.then(function(res) {
+    hideLoading();
+    _itemsData = res.data || [];
+    buildStocktakePage();
+  }).catch(function() { hideLoading(); showError('โหลดข้อมูลไม่สำเร็จ'); });
+}
+
+function buildStocktakePage() {
+  var html = '<div class="fade-in space-y-4">';
+  html += '<div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">';
+  html += '<h3 class="font-semibold text-gray-700"><i class="fi fi-rr-clipboard-list text-navy-600 mr-2"></i>นับสต็อก</h3>';
+  html += '<button onclick="submitStocktake()" class="btn-primary"><i class="fi fi-rr-disk mr-1"></i>บันทึกการปรับยอด</button></div>';
+  html += '<p class="text-xs text-gray-500">กรอกจำนวนที่นับได้จริงในช่อง "นับจริง" แล้วกดบันทึก ระบบจะปรับยอดให้อัตโนมัติ</p>';
+  html += '<div class="card overflow-hidden"><div class="overflow-x-auto">';
+  html += '<table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600 text-xs">';
+  html += '<tr><th class="px-4 py-3 text-left">รหัส/ชื่อ</th><th class="px-4 py-3 text-center">ระบบ</th><th class="px-4 py-3 text-center">นับจริง</th><th class="px-4 py-3 text-center">ผลต่าง</th></tr></thead>';
+  html += '<tbody class="divide-y divide-gray-100">';
+  _itemsData.forEach(function(item) {
+    html += '<tr data-st-id="' + item.id + '"><td class="px-4 py-3"><p class="font-medium text-gray-800">' + escHtml(item.name) + '</p><p class="text-xs text-gray-500">' + escHtml(item.item_code) + ' • ' + escHtml(item.unit) + '</p></td>';
+    html += '<td class="px-4 py-3 text-center font-bold text-gray-800">' + item.current_stock + '</td>';
+    html += '<td class="px-4 py-3 text-center"><input type="number" class="st-count w-20 border border-gray-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" data-id="' + item.id + '" value="' + item.current_stock + '"></td>';
+    html += '<td class="px-4 py-3 text-center"><span class="st-diff text-xs font-medium" data-sys="' + item.current_stock + '">-</span></td></tr>';
+  });
+  html += '</tbody></table></div></div></div>';
+  document.getElementById('mainContent').innerHTML = html;
+  // Bind input events to update diff
+  document.querySelectorAll('.st-count').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      var sys = parseInt(inp.closest('tr').querySelector('.st-diff').getAttribute('data-sys')) || 0;
+      var act = parseInt(inp.value) || 0;
+      var diff = act - sys;
+      var diffEl = inp.closest('tr').querySelector('.st-diff');
+      if (diff === 0) { diffEl.textContent = '-'; diffEl.className = 'st-diff text-xs font-medium text-gray-400'; }
+      else if (diff > 0) { diffEl.textContent = '+' + diff; diffEl.className = 'st-diff text-xs font-medium text-green-600'; }
+      else { diffEl.textContent = '' + diff; diffEl.className = 'st-diff text-xs font-medium text-red-600'; }
+    });
+  });
+}
+
+function submitStocktake() {
+  var inputs = document.querySelectorAll('.st-count');
+  var adjustments = [];
+  inputs.forEach(function(inp) {
+    var sys = parseInt(inp.closest('tr').querySelector('.st-diff').getAttribute('data-sys')) || 0;
+    var act = parseInt(inp.value) || 0;
+    if (act !== sys) adjustments.push({ item_id: inp.getAttribute('data-id'), actual: act, system: sys });
+  });
+  if (adjustments.length === 0) { showError('ไม่มีรายการที่ต้องปรับยอด'); return; }
+  showConfirm('ยืนยันปรับยอด', 'มี ' + adjustments.length + ' รายการที่ต้องปรับยอด ยืนยัน?', function() {
+    showLoading('กำลังปรับยอด...');
+    // เรียก backend ทีละรายการ
+    var promises = adjustments.map(function(a) {
+      return callAPI('updateItem', AUTH.token, a.item_id, { current_stock: a.actual });
+    });
+    Promise.all(promises).then(function() {
+      hideLoading();
+      showSuccess('ปรับยอดเรียบร้อย ' + adjustments.length + ' รายการ');
+      _itemsCacheTime = 0; // clear cache
+      renderStocktake();
+    }).catch(function() { hideLoading(); showError('เกิดข้อผิดพลาดบางรายการ'); });
+  });
 }
 
 // ===== WITHDRAW =====
