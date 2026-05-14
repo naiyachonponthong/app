@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --navy-50: #eef1ff;
+  --navy-100: #d6deff;
+  --navy-200: #b3c1ff;
+  --navy-300: #8099ff;
+  --navy-400: #4d70ff;
+  --navy-500: #1a47e6;
+  --navy-600: #1338b8;
+  --navy-700: #0e2a8a;
+  --navy-800: #091d5c;
+  --navy-900: #051030;
+}
+
+* { font-family: 'Sarabun', sans-serif; }
+
+/* Scrollbar hide */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Fade in */
+.fade-in { animation: fadeIn 0.3s ease-out; }
+@keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } }
+
+/* Cards */
+.card {
+  background: #fff;
+  border-radius: 1rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.card-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.card-body { padding: 1.25rem; }
+
+/* Buttons */
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.2rem;
+  background: var(--navy-700); color: #fff;
+  border-radius: 0.75rem; font-size: 0.875rem; font-weight: 500;
+  border: none; cursor: pointer; transition: background 0.15s;
+}
+.btn-primary:hover { background: var(--navy-800); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.2rem;
+  background: #fff; color: #374151;
+  border: 1px solid #d1d5db; border-radius: 0.75rem;
+  font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s;
+}
+.btn-secondary:hover { background: #f9fafb; }
+
+.btn-success {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.2rem;
+  background: #059669; color: #fff;
+  border-radius: 0.75rem; font-size: 0.875rem; font-weight: 500;
+  border: none; cursor: pointer; transition: background 0.15s;
+}
+.btn-success:hover { background: #047857; }
+
+.btn-danger {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.2rem;
+  background: #dc2626; color: #fff;
+  border-radius: 0.75rem; font-size: 0.875rem; font-weight: 500;
+  border: none; cursor: pointer; transition: background 0.15s;
+}
+.btn-danger:hover { background: #b91c1c; }
+
+.btn-warning {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.2rem;
+  background: #d97706; color: #fff;
+  border-radius: 0.75rem; font-size: 0.875rem; font-weight: 500;
+  border: none; cursor: pointer; transition: background 0.15s;
+}
+.btn-warning:hover { background: #b45309; }
+
+.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.75rem; border-radius: 0.5rem; }
+
+/* Badges */
+.badge-approved { background: #d1fae5; color: #065f46; }
+.badge-rejected { background: #fee2e2; color: #991b1b; }
+.badge-pending  { background: #fef3c7; color: #92400e; }
+.badge-receive  { background: #dbeafe; color: #1e40af; }
+.badge-withdraw { background: #f3e8ff; color: #6b21a8; }
+
+/* Stock status */
+.stock-critical { background: #fee2e2; color: #991b1b; }
+.stock-low      { background: #fef3c7; color: #92400e; }
+.stock-ok       { background: #d1fae5; color: #065f46; }
+
+/* Progress bar */
+.progress-bar { width: 100%; height: 0.5rem; background: #f3f4f6; border-radius: 9999px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 9999px; transition: width 0.3s ease; }
+
+/* Pagination */
+.page-btn {
+  min-width: 2rem; height: 2rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #e5e7eb; background: #fff; color: #374151;
+  border-radius: 0.5rem; font-size: 0.75rem; cursor: pointer;
+  transition: all 0.15s;
+}
+.page-btn:hover { background: #f9fafb; }
+.page-btn.active { background: var(--navy-700); color: #fff; border-color: var(--navy-700); }
+
+/* Workflow */
+.wf-bubble { width: 3rem; height: 3rem; border-radius: 9999px; display: flex; align-items: center; justify-content: center; color: #fff; }
+.wf-arrow { color: #d1d5db; font-size: 1.25rem; }
+
+/* Role tabs */
+.active-tab { border-color: var(--navy-700) !important; color: var(--navy-700) !important; }
+
+/* Form */
+.form-label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.375rem; }
+.form-input {
+  width: 100%; padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db; border-radius: 0.75rem;
+  font-size: 0.875rem; color: #111827;
+  outline: none; transition: box-shadow 0.15s, border-color 0.15s;
+}
+.form-input:focus { border-color: var(--navy-500); box-shadow: 0 0 0 3px rgba(26,71,230,0.15); }
+
+/* Sidebar */
+#sidebar { transform: translateX(-100%); }
+#sidebar.open { transform: translateX(0); }
+@media (min-width: 1024px) {
+  #sidebar { transform: translateX(0) !important; }
+}
+
+/* QR reader */
+#qr-reader { width: 100%; max-width: 400px; margin: 0 auto; }
+#qr-reader video { border-radius: 0.75rem; }
+
+/* Swal custom */
+.swal2-popup { font-family: 'Sarabun', sans-serif !important; border-radius: 1rem !important; }
+
+/* Utility colors that Tailwind CDN might need config for */
+.bg-navy-50  { background-color: var(--navy-50); }
+.bg-navy-100 { background-color: var(--navy-100); }
+.bg-navy-200 { background-color: var(--navy-200); }
+.bg-navy-700 { background-color: var(--navy-700); }
+.bg-navy-800 { background-color: var(--navy-800); }
+.bg-navy-900 { background-color: var(--navy-900); }
+.text-navy-600 { color: var(--navy-600); }
+.text-navy-700 { color: var(--navy-700); }
+.text-navy-800 { color: var(--navy-800); }
+.border-navy-600 { border-color: var(--navy-600); }
+.border-navy-700 { border-color: var(--navy-700); }
