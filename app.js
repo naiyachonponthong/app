@@ -2,11 +2,7 @@
 // app.js — Frontend (Static Site)
 // ============================================================
 
-// ===== API WRAPPER =====
-function callAPI(fn) {
-  var args = Array.prototype.slice.call(arguments, 1);
-  return window.callAPI.apply(null, [fn].concat(args));
-}
+// callAPI ถูก define ใน api.js แล้ว
 
 // ===== CONSTANTS =====
 var ITEMS_PER_PAGE = 20;
