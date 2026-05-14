@@ -204,6 +204,9 @@ function showMainShell() {
   var notEmp   = AUTH.user.role !== 'employee';
   document.getElementById('menuItems').style.display    = isAdmin ? '' : 'none';
   document.getElementById('menuReceive').style.display  = notEmp  ? '' : 'none';
+  document.getElementById('menuStocktake').style.display = notEmp ? '' : 'none';
+  document.getElementById('menuPrintQR').style.display   = notEmp ? '' : 'none';
+  document.getElementById('menuInventorySection').style.display = notEmp ? '' : 'none';
   document.getElementById('menuApprove').style.display  = isAdmin ? '' : 'none';
   document.getElementById('menuAdminSection').style.display = isAdmin ? '' : 'none';
   document.getElementById('menuReportLabel').style.display  = notEmp ? '' : 'none';
