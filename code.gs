@@ -89,6 +89,7 @@ function doGet(e) {
         case 'getWithdrawals':      result = getWithdrawals(args[0], args[1]); break;
         case 'approveWithdrawal':   result = approveWithdrawal(args[0], args[1], args[2]); break;
         case 'rejectWithdrawal':    result = rejectWithdrawal(args[0], args[1], args[2]); break;
+        case 'cancelWithdrawal':    result = cancelWithdrawal(args[0], args[1]); break;
         case 'getTransactions':     result = getTransactions(args[0], args[1]); break;
         case 'getDashboardStats':   result = getDashboardStats(args[0]); break;
         case 'getUsers':            result = getUsers(args[0]); break;
@@ -734,6 +735,37 @@ function rejectWithdrawal(token, wdId, reason) {
     return { success: true, message: 'ปฏิเสธคำขอเรียบร้อย' };
   } catch(err) {
     logError('rejectWithdrawal', err);
+    return { success: false, message: err.message };
+  }
+}
+
+/** cancelWithdrawal — พนักงานยกเลิกคำขอเบิกตัวเอง */
+function cancelWithdrawal(token, wdId) {
+  try {
+    var session = validateSession(token);
+    if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    var wds = getSheetData('Withdrawals');
+    var wd = null;
+    for (var i = 0; i < wds.length; i++) {
+      if (wds[i].id === wdId) { wd = wds[i]; break; }
+    }
+    if (!wd) return { success: false, message: 'ไม่พบคำขอ' };
+    if (wd.requested_by !== session.user_id) return { success: false, message: 'ไม่มีสิทธิ์ยกเลิก' };
+    if (wd.status !== 'pending') return { success: false, message: 'คำขอนี้ดำเนินการแล้ว' };
+    updateInSheet('Withdrawals', wdId, {
+      status: 'rejected',
+      reject_reason: 'ยกเลิกโดยผู้ขอ',
+      approved_by: session.user_id,
+      approved_by_name: session.name,
+      approved_at: new Date().toISOString()
+    });
+    sendTelegram('<b>ยกเลิกการเบิก</b> #' + wd.withdraw_no
+      + '\nรายการ: ' + wd.item_name
+      + '\nผู้ขอ: ' + wd.requested_by_name
+      + '\nโดย: ' + session.name);
+    return { success: true, message: 'ยกเลิกคำขอเรียบร้อย' };
+  } catch(err) {
+    logError('cancelWithdrawal', err);
     return { success: false, message: err.message };
   }
 }

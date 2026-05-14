@@ -1470,11 +1470,11 @@ function buildWithdrawPage() {
   html += '<th class="px-4 py-3 text-left">รายการ</th><th class="px-4 py-3 text-center">ขอ/อนุมัติ</th>';
   html += '<th class="px-4 py-3 text-left">วัตถุประสงค์</th><th class="px-4 py-3 text-left">ผู้ขอ</th>';
   html += '<th class="px-4 py-3 text-center">สถานะ</th>';
-  if (AUTH.user.role === 'admin') html += '<th class="px-4 py-3 text-center">จัดการ</th>';
+  html += '<th class="px-4 py-3 text-center">จัดการ</th>';
   html += '</tr></thead><tbody class="divide-y divide-gray-100">';
 
   if (paged.length === 0) {
-    html += '<tr><td colspan="' + (AUTH.user.role==='admin'?8:7) + '" class="text-center py-10 text-gray-400">ไม่พบรายการ</td></tr>';
+    html += '<tr><td colspan="8" class="text-center py-10 text-gray-400">ไม่พบรายการ</td></tr>';
   }
   paged.forEach(function(w) {
     var badgeClass = w.status==='approved'?'badge-approved':w.status==='rejected'?'badge-rejected':'badge-pending';
@@ -1489,16 +1489,19 @@ function buildWithdrawPage() {
     html += '<td class="px-4 py-2.5 text-xs text-gray-500 max-w-xs truncate">' + escHtml(w.purpose||'-') + '</td>';
     html += '<td class="px-4 py-2.5 text-xs text-gray-600">' + escHtml(w.requested_by_name||'-') + '</td>';
     html += '<td class="px-4 py-2.5 text-center"><span class="px-2 py-0.5 rounded-full text-xs font-medium ' + badgeClass + '">' + statusLabel + '</span></td>';
-    if (AUTH.user.role === 'admin') {
-      html += '<td class="px-4 py-2.5 text-center"><div class="flex gap-1 justify-center">';
-      if (w.status === 'pending') {
+    html += '<td class="px-4 py-2.5 text-center"><div class="flex gap-1 justify-center">';
+    if (w.status === 'pending') {
+      if (AUTH.user.role === 'admin') {
         html += '<button onclick="openApproveModal(\'' + w.id + '\',' + w.quantity_requested + ')" class="btn-success btn-sm text-xs"><i class="fi fi-rr-check mr-1"></i>อนุมัติ</button>';
         html += '<button onclick="openRejectModal(\'' + w.id + '\')" class="btn-danger btn-sm text-xs"><i class="fi fi-rr-cross mr-1"></i>ปฏิเสธ</button>';
-      } else {
-        html += '<span class="text-xs text-gray-400">—</span>';
       }
-      html += '</div></td>';
+      if (w.requested_by === AUTH.user.id) {
+        html += '<button onclick="doCancelWithdrawal(\'' + w.id + '\')" class="btn-secondary btn-sm text-xs"><i class="fi fi-rr-cross mr-1"></i>ยกเลิก</button>';
+      }
+    } else {
+      html += '<span class="text-xs text-gray-400">—</span>';
     }
+    html += '</div></td>';
     html += '</tr>';
   });
   html += '</tbody></table></div></div>';
@@ -1517,10 +1520,16 @@ function buildWithdrawPage() {
     html += '<span><i class="fi fi-rr-layers mr-1"></i>' + w.quantity_requested + ' ' + escHtml(w.unit) + '</span>';
     html += '<span><i class="fi fi-rr-user mr-1"></i>' + escHtml(w.requested_by_name||'-') + '</span>';
     html += '<span><i class="fi fi-rr-target mr-1"></i>' + escHtml(w.purpose||'-') + '</span></div>';
-    if (AUTH.user.role==='admin' && w.status==='pending') {
+    if (w.status === 'pending') {
       html += '<div class="flex gap-2 pt-1">';
-      html += '<button onclick="openApproveModal(\'' + w.id + '\',' + w.quantity_requested + ')" class="flex-1 btn-success btn-sm text-xs">อนุมัติ</button>';
-      html += '<button onclick="openRejectModal(\'' + w.id + '\')" class="flex-1 btn-danger btn-sm text-xs">ปฏิเสธ</button></div>';
+      if (AUTH.user.role === 'admin') {
+        html += '<button onclick="openApproveModal(\'' + w.id + '\',' + w.quantity_requested + ')" class="flex-1 btn-success btn-sm text-xs">อนุมัติ</button>';
+        html += '<button onclick="openRejectModal(\'' + w.id + '\')" class="flex-1 btn-danger btn-sm text-xs">ปฏิเสธ</button>';
+      }
+      if (w.requested_by === AUTH.user.id) {
+        html += '<button onclick="doCancelWithdrawal(\'' + w.id + '\')" class="flex-1 btn-secondary btn-sm text-xs"><i class="fi fi-rr-cross mr-1"></i>ยกเลิก</button>';
+      }
+      html += '</div>';
     }
     html += '</div>';
   });
@@ -1827,6 +1836,17 @@ function doReject(wdId) {
     if (res.success) { showSuccess(res.message); renderApprove(); }
     else showError(res.message);
   }).catch(function() { hideLoading(); showError('เกิดข้อผิดพลาด'); });
+}
+
+function doCancelWithdrawal(wdId) {
+  showConfirm('ยืนยันยกเลิก', 'ยกเลิกคำขอเบิกนี้?', function() {
+    showLoading('กำลังยกเลิก...');
+    callAPI('cancelWithdrawal', AUTH.token, wdId).then(function(res) {
+      hideLoading();
+      if (res.success) { showSuccess(res.message); renderWithdraw(); }
+      else showError(res.message);
+    }).catch(function() { hideLoading(); showError('เกิดข้อผิดพลาด'); });
+  });
 }
 
 // ===== TRANSACTIONS =====
