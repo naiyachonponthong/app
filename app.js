@@ -273,6 +273,10 @@ function renderDashboard() {
     if (kpi.pending > 0) { badge.textContent = kpi.pending; badge.classList.remove('hidden'); }
     else { badge.classList.add('hidden'); }
 
+    var lowBadge = document.getElementById('lowStockBadge');
+    if (kpi.low_stock > 0) { lowBadge.textContent = kpi.low_stock; lowBadge.classList.remove('hidden'); }
+    else { lowBadge.classList.add('hidden'); }
+
     var html = '<div class="fade-in space-y-5">';
 
     if (d.low_stock_items && d.low_stock_items.length > 0) {
@@ -462,6 +466,7 @@ function renderItems() {
   // reuse cache ถ้ายังไม่หมดอายุ
   if (_itemsData.length > 0 && (Date.now() - _itemsCacheTime) < ITEMS_CACHE_TTL) {
     hideLoading();
+    updateLowStockBadge(_itemsData);
     _itemsPage = 1;
     buildItemsPage();
     return;
@@ -471,6 +476,7 @@ function renderItems() {
     if (!res.success) { showError(res.message); return; }
     _itemsData = res.data;
     _itemsCacheTime = Date.now();
+    updateLowStockBadge(_itemsData);
     _itemsPage  = 1;
     buildItemsPage();
   }).catch(function() { hideLoading(); showError('โหลดข้อมูลไม่สำเร็จ'); });
@@ -817,12 +823,21 @@ function printQRLabel(itemJson) {
 var _stockData = [];
 var _stockView = 'card';
 
+function updateLowStockBadge(items) {
+  var lowBadge = document.getElementById('lowStockBadge');
+  if (!lowBadge) return;
+  var count = (items || []).filter(function(i){ return i.active !== false && i.current_stock <= i.min_stock; }).length;
+  if (count > 0) { lowBadge.textContent = count; lowBadge.classList.remove('hidden'); }
+  else { lowBadge.classList.add('hidden'); }
+}
+
 function renderStock() {
   showLoading('โหลดสต็อก...');
   // reuse cache ถ้ายังไม่หมดอายุ
   if (_itemsData.length > 0 && (Date.now() - _itemsCacheTime) < ITEMS_CACHE_TTL) {
     hideLoading();
     _stockData = _itemsData;
+    updateLowStockBadge(_itemsData);
     buildStockPage();
     return;
   }
@@ -832,6 +847,7 @@ function renderStock() {
     _itemsData = res.data;
     _itemsCacheTime = Date.now();
     _stockData = res.data;
+    updateLowStockBadge(_itemsData);
     buildStockPage();
   }).catch(function() { hideLoading(); showError('โหลดข้อมูลไม่สำเร็จ'); });
 }
