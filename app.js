@@ -2130,14 +2130,24 @@ function stopQRScanner() {
 
 // ===== ON LOAD =====
 window.onload = function() {
-  document.getElementById('loginYear').textContent = (new Date().getFullYear() + 543);
+  // ดึง config ก่อนเพื่ออัปเดต logo และชื่อระบบ
+  callAPI('getConfig').then(function(res) {
+    if (res.success && res.data) {
+      var cfg = res.data;
+      if (cfg.app_name) {
+        document.getElementById('loginAppName').textContent = cfg.app_name;
+        document.getElementById('sidebarAppName').textContent = cfg.app_name;
+      }
+      updateLogoDisplay(cfg.app_logo);
+    }
+  }).catch(function() {}).finally(function() {
+    // Parse URL params for QR
+    var urlParams = new URLSearchParams(window.location.search);
+    _QR_ACTION = urlParams.get('action') || '';
+    _QR_ITEM_ID = urlParams.get('item_id') || '';
 
-  // Parse URL params for QR
-  var urlParams = new URLSearchParams(window.location.search);
-  _QR_ACTION = urlParams.get('action') || '';
-  _QR_ITEM_ID = urlParams.get('item_id') || '';
-
-  if (AUTH.token) { initApp(); }
-  else { showLoginPage(); }
+    if (AUTH.token) { initApp(); }
+    else { showLoginPage(); }
+  });
 };
 
