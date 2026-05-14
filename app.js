@@ -228,7 +228,7 @@ function loadPage(page) {
   });
   var titles = {
     dashboard:'ภาพรวมระบบ', stock:'สต็อกคงเหลือ', items:'รายการวัสดุ',
-    receive:'รับวัสดุเข้าคลัง', stocktake:'นับสต็อก', withdraw:'เบิกวัสดุ', approve:'อนุมัติการเบิก',
+    receive:'รับวัสดุเข้าคลัง', stocktake:'นับสต็อก', printqr:'พิมพ์ QR สติ๊กเกอร์', withdraw:'เบิกวัสดุ', approve:'อนุมัติการเบิก',
     transactions:'ประวัติเคลื่อนไหว', reports:'รายงาน', qrscanner:'สแกน QR',
     users:'จัดการผู้ใช้งาน', settings:'ตั้งค่าระบบ', profile:'โปรไฟล์'
   };
@@ -244,6 +244,7 @@ function loadPage(page) {
   else if (page === 'items')        renderItems();
   else if (page === 'receive')      renderReceive();
   else if (page === 'stocktake')    renderStocktake();
+  else if (page === 'printqr')      renderPrintQRLabels();
   else if (page === 'withdraw')     renderWithdraw();
   else if (page === 'approve')      renderApprove();
   else if (page === 'transactions') renderTransactions();
@@ -1144,6 +1145,118 @@ function submitStocktake() {
       renderStocktake();
     }).catch(function() { hideLoading(); showError('เกิดข้อผิดพลาดบางรายการ'); });
   });
+}
+
+// ===== PRINT QR LABELS =====
+var _printQRFilter = { search:'', category:'all' };
+function renderPrintQRLabels() {
+  showLoading('โหลดข้อมูล...');
+  var itemsPromise = (_itemsData.length > 0 && (Date.now() - _itemsCacheTime) < ITEMS_CACHE_TTL)
+    ? Promise.resolve({ success: true, data: _itemsData })
+    : callAPI('getItems', AUTH.token).then(function(res){ _itemsData = res.data||[]; _itemsCacheTime = Date.now(); return res; });
+  itemsPromise.then(function(res) {
+    hideLoading();
+    _itemsData = res.data || [];
+    buildPrintQRPage();
+  }).catch(function() { hideLoading(); showError('โหลดข้อมูลไม่สำเร็จ'); });
+}
+
+function buildPrintQRPage() {
+  var filtered = _itemsData.filter(function(i) {
+    if (i.active === false) return false;
+    if (_printQRFilter.search && !i.name.toLowerCase().includes(_printQRFilter.search.toLowerCase()) && !(i.item_code||'').toLowerCase().includes(_printQRFilter.search.toLowerCase())) return false;
+    if (_printQRFilter.category !== 'all' && i.category !== _printQRFilter.category) return false;
+    return true;
+  });
+  var cats = getCategoryList(_itemsData);
+
+  var html = '<div class="fade-in space-y-4">';
+  // Toolbar
+  html += '<div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">';
+  html += '<div class="flex gap-2 flex-wrap">';
+  html += '<div class="relative"><i class="fi fi-rr-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>';
+  html += '<input type="text" id="printQRSearch" placeholder="ค้นหาวัสดุ..." value="' + escHtml(_printQRFilter.search) + '" onkeyup="debouncePrintQRFilter()" class="pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 w-48"></div>';
+  html += '<select id="printQRCat" onchange="applyPrintQRFilter()" class="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none">';
+  html += '<option value="all">ทุกหมวด</option>';
+  cats.forEach(function(c){ html += '<option value="' + escHtml(c) + '" ' + (_printQRFilter.category===c?'selected':'') + '>' + escHtml(c) + '</option>'; });
+  html += '</select></div>';
+  html += '<div class="flex gap-2">';
+  html += '<button onclick="toggleSelectAllQR()" class="btn-secondary btn-sm"><i class="fi fi-rr-check mr-1"></i>เลือกทั้งหมด/ยกเลิก</button>';
+  html += '<button onclick="printSelectedQRLabels()" class="btn-primary btn-sm"><i class="fi fi-rr-print mr-1"></i>พิมพ์ที่เลือก</button></div></div>';
+  html += '<p class="text-xs text-gray-500">เลือกรายการที่ต้องการพิมพ์แล้วกดปุ่ม พิมพ์ที่เลือก (เลือกได้สูงสุด 20 รายการ/หน้า)</p>';
+
+  // Grid
+  html += '<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">';
+  if (filtered.length === 0) html += '<p class="col-span-full text-center text-gray-400 py-10">ไม่พบรายการ</p>';
+  filtered.forEach(function(item) {
+    var img = imgUrl(item.image_file_id);
+    var imgHtml = img ? '<img src="' + img + '" class="w-10 h-10 object-cover rounded-lg border border-gray-200">' : '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><i class="fi fi-rr-box-open-full text-gray-400 text-sm"></i></div>';
+    html += '<label class="card p-3 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow" onclick="event.stopPropagation()">';
+    html += '<input type="checkbox" class="qr-print-check w-4 h-4 accent-navy-600 flex-shrink-0" data-id="' + item.id + '">';
+    html += imgHtml;
+    html += '<div class="min-w-0"><p class="text-sm font-medium text-gray-800 truncate">' + escHtml(item.name) + '</p>';
+    html += '<p class="text-xs text-gray-500">' + escHtml(item.item_code) + '</p></div>';
+    html += '</label>';
+  });
+  html += '</div></div>';
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+var _printQRFilterTimer;
+function debouncePrintQRFilter() { clearTimeout(_printQRFilterTimer); _printQRFilterTimer = setTimeout(applyPrintQRFilter, 300); }
+function applyPrintQRFilter() {
+  _printQRFilter.search   = (document.getElementById('printQRSearch')||{}).value||'';
+  _printQRFilter.category = (document.getElementById('printQRCat')||{}).value||'all';
+  buildPrintQRPage();
+}
+function toggleSelectAllQR() {
+  var checks = document.querySelectorAll('.qr-print-check');
+  var allChecked = Array.prototype.every.call(checks, function(c){ return c.checked; });
+  checks.forEach(function(c){ c.checked = !allChecked; });
+}
+
+function printSelectedQRLabels() {
+  var selected = [];
+  document.querySelectorAll('.qr-print-check:checked').forEach(function(c) {
+    var id = c.getAttribute('data-id');
+    var item = _itemsData.find(function(i){ return i.id === id; });
+    if (item) selected.push(item);
+  });
+  if (selected.length === 0) { showError('กรุณาเลือกอย่างน้อย 1 รายการ'); return; }
+
+  var baseUrl = window.location.origin + window.location.pathname;
+  var win = window.open('', '_blank');
+  var css = 'body{font-family:sarabun,sans-serif;margin:0;padding:8mm;background:#fff}' +
+    '@media print{@page{size:A4;margin:8mm}}' +
+    '.sheet{display:flex;flex-wrap:wrap;gap:4mm;justify-content:flex-start}' +
+    '.label{width:44mm;height:30mm;border:1px solid #ccc;padding:2mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;page-break-inside:avoid}' +
+    '.name{font-size:9px;font-weight:700;color:#1a2566;margin:0 0 0.5mm;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.meta{font-size:7px;color:#666;margin:0 0 1mm}' +
+    '.qr-wrap{width:16mm;height:16mm}';
+
+  var bodyHtml = '<div class="sheet">';
+  selected.forEach(function(item) {
+    var qrUrl = baseUrl + '?action=withdraw&item_id=' + item.id;
+    bodyHtml += '<div class="label">';
+    bodyHtml += '<p class="name">' + escHtml(item.name) + '</p>';
+    bodyHtml += '<p class="meta">' + escHtml(item.item_code) + (item.size ? ' • ' + escHtml(item.size) : '') + '</p>';
+    bodyHtml += '<div class="qr-wrap" id="qr_' + item.id + '"></div>';
+    bodyHtml += '</div>';
+  });
+  bodyHtml += '</div>';
+
+  var scriptHtml = '';
+  selected.forEach(function(item) {
+    var qrUrl = baseUrl + '?action=withdraw&item_id=' + item.id;
+    scriptHtml += 'new QRCode(document.getElementById("qr_' + item.id + '"),{text:"' + qrUrl + '",width:60,height:60,colorDark:"#1a2566",correctLevel:QRCode.CorrectLevel.M});';
+  });
+
+  win.document.write('<html><head><title>พิมพ์ QR สติ๊กเกอร์</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">'
+    + '<style>' + css + '</style></head><body>' + bodyHtml
+    + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>'
+    + '<script>' + scriptHtml + 'setTimeout(function(){window.print();},' + (selected.length * 150 + 300) + ');<\/script>'
+    + '</body></html>');
+  win.document.close();
 }
 
 // ===== WITHDRAW =====
