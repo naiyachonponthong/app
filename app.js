@@ -535,24 +535,26 @@ function buildItemsPage() {
   });
   html += '</tbody></table></div>';
 
-  html += '<div class="md:hidden divide-y divide-gray-100">';
-  if (paged.length === 0) html += '<p class="text-center text-sm text-gray-400 py-8">ไม่พบรายการ</p>';
+  html += '<div class="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">';
+  if (paged.length === 0) html += '<p class="col-span-full text-center text-sm text-gray-400 py-8">ไม่พบรายการ</p>';
   paged.forEach(function(item) {
     var sClass = getStockClass(item.current_stock, item.min_stock);
     var sLabel = getStockLabel(item.current_stock, item.min_stock);
     var imgUrlSrc = imgUrl(item.image_file_id);
-    var imgHtml = imgUrlSrc ? '<img src="' + imgUrlSrc + '" class="w-12 h-12 object-cover rounded-xl border border-gray-200 flex-shrink-0">' : '<div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fi fi-rr-box-open-full text-gray-400 text-lg"></i></div>';
-    html += '<div class="p-4"><div class="flex items-start justify-between gap-3">';
-    html += '<div class="flex items-center gap-3 flex-1 min-w-0">' + imgHtml + '<div class="min-w-0"><p class="font-semibold text-gray-800 text-sm">' + escHtml(item.name) + '</p>';
-    html += '<p class="text-xs text-gray-500 mt-0.5">' + escHtml(item.item_code) + ' • ' + escHtml(item.size||'') + ' • ' + escHtml(item.unit) + '</p>';
-    html += '<div class="flex items-center gap-2 mt-2">';
-    html += '<span class="px-2 py-0.5 rounded-full text-xs font-medium ' + sClass + '">' + sLabel + '</span>';
-    html += '<span class="text-xs text-gray-600">สต็อก: <b>' + item.current_stock + '</b> ' + item.unit + '</span></div></div>';
-    html += '<div class="flex gap-1">';
-    html += '<button onclick="showItemDetailModal(\'' + item.id + '\')" class="w-8 h-8 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center hover:bg-gray-200" title="ดูรายละเอียด"><i class="fi fi-rr-eye text-sm"></i></button>';
-    html += '<button onclick="showQRModal(\'' + item.id + '\')" class="w-8 h-8 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center"><i class="fi fi-rr-qr-scan text-sm"></i></button>';
-    html += '<button onclick="openEditItemModal(\'' + item.id + '\')" class="w-8 h-8 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center"><i class="fi fi-rr-edit text-sm"></i></button>';
-    html += '</div></div></div>';
+    var imgHtml = imgUrlSrc ? '<img src="' + imgUrlSrc + '" class="w-14 h-14 object-cover rounded-xl border border-gray-200">' : '<div class="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center"><i class="fi fi-rr-box-open-full text-gray-400 text-xl"></i></div>';
+    html += '<div class="card p-4 flex flex-col gap-3">';
+    html += '<div class="flex items-start justify-between">';
+    html += '<div>' + imgHtml + '</div>';
+    html += '<span class="px-2 py-0.5 rounded-full text-xs font-medium ' + sClass + '">' + sLabel + '</span></div>';
+    html += '<div><p class="font-semibold text-gray-800 text-sm leading-snug">' + escHtml(item.name) + '</p>';
+    html += '<p class="text-xs text-gray-400 mt-0.5">' + escHtml(item.item_code) + ' • ' + escHtml(item.size||'') + '</p>';
+    html += '<p class="text-xs text-gray-500 mt-0.5">' + escHtml(item.category||'') + '</p></div>';
+    html += '<div class="flex justify-between text-xs text-gray-500"><span>คงเหลือ</span><span class="font-bold text-gray-800">' + item.current_stock + ' ' + escHtml(item.unit) + '</span></div>';
+    html += '<div class="flex gap-2 pt-1">';
+    html += '<button onclick="showItemDetailModal(\'' + item.id + '\')" class="flex-1 btn-secondary btn-sm text-xs"><i class="fi fi-rr-eye mr-1"></i>ดู</button>';
+    html += '<button onclick="showQRModal(\'' + item.id + '\')" class="flex-1 btn-success btn-sm text-xs" style="background:#e0f2f1;color:#00695c;border-color:#b2dfdb"><i class="fi fi-rr-qr-scan mr-1"></i>QR</button>';
+    html += '<button onclick="openEditItemModal(\'' + item.id + '\')" class="flex-1 btn-primary btn-sm text-xs"><i class="fi fi-rr-edit mr-1"></i>แก้ไข</button>';
+    html += '</div></div>';
   });
   html += '</div></div>';
 
